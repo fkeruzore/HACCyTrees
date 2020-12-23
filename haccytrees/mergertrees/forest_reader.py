@@ -79,6 +79,8 @@ column_rename = {
     'snap_num'        : 'snapnum', 
     'cdelta_sod'      : 'sod_halo_cdelta', 
     'cdelta_sod_error': 'sod_halo_cdelta_error', 
+    'cdelta_sod_accum': 'sod_halo_c_acc_mass',
+    'cdelta_sod_peak' : 'sod_halo_c_peak_mass',
     'sod_halo_count'  : 'sod_halo_count', 
     'mass_sod'        : 'sod_halo_mass', 
     'radius_sod'      : 'sod_halo_radius', 
