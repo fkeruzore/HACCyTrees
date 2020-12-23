@@ -1,6 +1,7 @@
 import numpy as np
 import numba
 import h5py
+from numpy.lib.arraysetops import isin
 from ..simulations import simulation_lut
 
 @numba.jit(nopython=True)
@@ -131,3 +132,37 @@ def read_forest(filename: str, simulation: str, nchunks: int=None, chunknum: int
         return data, progenitor_array
     else:
         return data
+
+
+@numba.jit(nopython=True, parallel=True)
+def _get_mainbranch(snap_num, target_indices, mainbranch_matrix):
+    ntargets = len(target_indices)
+    nhalos = len(snap_num)
+    for i in numba.prange(ntargets):
+        idx = target_indices[i]
+        sn = snap_num[idx]
+        mainbranch_matrix[i, sn] = idx
+        while(idx+1 < nhalos and snap_num[idx+1] < sn):
+            idx += 1
+            sn = snap_num[idx]
+            mainbranch_matrix[i, sn] = idx
+
+
+def get_mainbranch_indices(forest: dict, simulation: str, target_index: np.ndarray) -> np.ndarray:
+    if isinstance(simulation, str):
+        simulation = simulation_lut[simulation]
+    if not isinstance(target_index, np.ndarray):
+        if hasattr(target_index, "__len__"):
+            target_index = np.array(target_index)
+        else:
+            target_index = np.array([target_index])
+    nhalos = len(target_index)
+    nsteps = len(simulation.cosmotools_steps)
+
+    # allocate an index array
+    mainbranch_indices = np.empty((nhalos, nsteps), dtype=np.int64)
+    mainbranch_indices[:] = -1
+
+    # fill index array
+    _get_mainbranch(forest['snap_num'], target_index, mainbranch_indices)
+    return mainbranch_indices
