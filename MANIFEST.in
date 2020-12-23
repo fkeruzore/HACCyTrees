@@ -1,0 +1,2 @@
+include versioneer.py
+include haccytrees/_version.py
