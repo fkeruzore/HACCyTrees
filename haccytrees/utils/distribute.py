@@ -192,7 +192,7 @@ def overload(partition: Partition, data: dict, overload_length: float, xyz_keys=
 
 
 def exchange(partition: Partition, data: dict, key: str, local_keys: np.ndarray, verbose=False, filter_key=None, do_all2all=False, replace_notfound_key=None):
-    """exchange particles among ranks by key
+    """Exchange particles among ranks by key
 
     This function will assign data to the rank that owns the key. The keys that the local rank owns are given by
     "local_keys", which should be unique. The keys of the data that the local rank currently has is in "data[key]".

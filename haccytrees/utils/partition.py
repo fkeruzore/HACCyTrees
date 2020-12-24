@@ -7,6 +7,40 @@ _rank = _comm.Get_rank()
 _nranks = _comm.Get_size()
 
 class Partition:
+    """An MPI partition of a cubic volume
+
+    Parameters
+    ----------
+    box_size : float
+        The length of the cubic volume
+
+    create_topo26 : boolean
+        If `True`, an additional graph communicator will be initialized 
+        connecting all 26 direct neighbors symmetrically
+
+    mpi_waittime : float
+        Time in seconds for which the initialization will wait, can fix certain
+        MPI issues if ranks are not ready (e.g. `PG with index not found`)
+
+    Examples
+    --------
+    
+    Using Partition on 8 MPI ranks to split a periodic unit-cube
+
+    >>> partition = Partition(1.0)
+    >>> partition.rank
+    0
+    >>> partition.decomp
+    np.ndarray([2, 2, 2])
+    >>> partition.coordinates
+    np.ndarray([0, 0, 0])
+    >>> partition.origin
+    np.ndarray([0., 0., 0.])
+    >>> partition.extent
+    np.ndarray([0.5, 0.5, 0.5])
+
+
+    """
     def __init__(self, box_size: float, create_topo26: bool=False, mpi_waittime: float=0):
         self._box_size = box_size
         self._rank = _rank
@@ -56,59 +90,82 @@ class Partition:
 
     @property
     def box_size(self):
+        """float: the length of the full cubic volume"""
         return self._box_size
 
     @property 
     def comm(self):
+        """3D Cartesian MPI Topology / Communicator"""
         return self._topo
 
     @property
     def comm26(self):
+        """Graph MPI Topology / Communicator, connecting the neighboring ranks
+        (symmetric)"""
         return self._topo26
 
     @property
     def rank(self):
+        """int: the MPI rank of this processor"""
         return self._topo.rank
 
     @property
     def nranks(self):
+        """int: the total number of processors"""
         return self._nranks
 
     @property
     def decomp(self):
+        """np.ndarray: the decomposition of the cubic volume: number of ranks along each dimension"""
         return self._decomp
         
     @property
     def coordinates(self):
+        """np.ndarray: 3D indices of this processor"""
         return self._coords
 
     @property
     def extent(self):
+        """np.ndarray: Length along each axis of this processors subvolume (same for all procs)"""
         return self._extent
 
     @property
-    def origin(self):
+    def origin(self) -> np.ndarray:
+        """np.ndarray: Cartesian coordinates of the origin of this processor"""
         return self._origin
 
 
-    def get_neighbor(self, dx: int, dy: int, dz: int):
+    def get_neighbor(self, dx: int, dy: int, dz: int) -> int:
+        """get the rank of the neighbor at relative position (dx, dy, dz)
+        
+        Parameters
+        ----------
+
+        dx, dy, dz: int
+            relative position, one of `[-1, 0, 1]`
+        """
         return self._neighbors[dx+1, dy+1, dz+1]
-        # return self._neighbors[((dx+1)*3 + (dy+1))*3 + (dz+1)]
 
     @property
     def neighbors(self):
+        """np.ndarray: a 3x3x3 array with the ranks of the neighboring processes 
+        (`neighbors[1,1,1]` is this processor)"""
         return self._neighbors
 
     @property
     def neighbors26(self):
+        """np.ndarray: a flattened list of the unique neighboring ranks"""
         return self._neighbors26
 
     @property
     def neighbors26_count(self):
+        """int: number of unique neighboring ranks"""
         return self._nneighbors26
 
     @property
     def ranklist(self):
+        """np.ndarray: A complete list of ranks, aranged by their coordinates. 
+        The array has shape `partition.decomp`"""
         ranklist = np.empty(self.decomp, dtype=np.int32)
         for i in range(self.decomp[0]):
             for j in range(self.decomp[1]):

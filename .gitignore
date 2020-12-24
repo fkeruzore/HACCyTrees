@@ -30,11 +30,14 @@ nosetests.xml
 # Translations
 *.mo
 
-# Mr Developer
-.mr.developer.cfg
-.project
-.pydevproject
-
+# Binaries
 *.hdf5
 *.hdf 
 *.h5
+
+# IDEs
+.vscode
+
+# Builds
+build
+_build

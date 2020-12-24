@@ -1,7 +1,8 @@
 import numpy as np
 import numba
 import h5py
-from numpy.lib.arraysetops import isin
+from typing import Tuple, Mapping
+
 from ..simulations import simulation_lut
 
 @numba.jit(nopython=True)
@@ -92,7 +93,13 @@ column_rename = {
 }
 
 
-def read_forest(filename: str, simulation: str, nchunks: int=None, chunknum: int=None, create_indices: bool=True, add_scale_factor: bool=True):
+def read_forest(filename: str, simulation: str, *,
+        nchunks: int=None, chunknum: int=None, 
+        create_indices: bool=True, add_scale_factor: bool=True
+        ) -> Tuple[Mapping[str, np.ndarray], np.ndarray]:
+    """Read a HDF5 merger-forest
+
+    """
     if isinstance(simulation, str):
         simulation = simulation_lut[simulation]
     with h5py.File(filename, 'r') as f:
@@ -168,3 +175,10 @@ def get_mainbranch_indices(forest: dict, simulation: str, target_index: np.ndarr
     # fill index array
     _get_mainbranch(forest['snap_num'], target_index, mainbranch_indices)
     return mainbranch_indices
+
+
+def split_fragment_tag(tag: int) -> Tuple[int, int]:
+    tag = -tag  #reverting the - operation first
+    idx = tag >> 48
+    old_tag = tag & ((1<<48) - 1)
+    return old_tag, idx
