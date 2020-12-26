@@ -1,4 +1,4 @@
 References
 ==========
 
-.. autofunction:: haccytrees.mergertrees.treenodes.catalog2tree
+.. autofunction:: haccytrees.mergertrees.catalogs2trees.catalog2tree

@@ -10,7 +10,7 @@ from ..utils.distribute import distribute, exchange
 from ..utils.timer import Timer, time
 from ..utils.datastores import GenericIOStore, NumpyStore
 from ..utils.memory import debug_memory
-from .treenodes_output_hdf5 import write2multiple, write2single
+from .catalogs2trees_hdf5_output import write2multiple, write2single
 
 
 # Required columns to run the algorithm

@@ -3,7 +3,7 @@ import sys, traceback
 import numpy as np
 from mpi4py import MPI
 from haccytrees.simulations import simulation_lut, _Simulation
-from haccytrees.mergertrees.treenodes import catalog2tree
+from haccytrees.mergertrees.catalogs2trees import catalog2tree
 
 fields_copy = [
     "tree_node_index",
