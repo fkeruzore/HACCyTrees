@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Sequence, Mapping, Tuple
 import numpy as np
 import pygio
 import numba
@@ -174,9 +174,35 @@ def _catalog2tree_step(step: int, data_by_step, index_by_step, size_by_step, loc
     return local_ids
 
 
-def catalog2tree(simulation: _Simulation, treenode_base: str, fields_copy: list, fields_derived: dict, output_file: str, 
-                 temporary_path: str=None, do_all2all_exchange: bool=False, split_output: bool=False, fail_on_desc_not_found: bool=True,
-                 rebalance_gio_read: bool=False, mpi_waittime: float=0, logger: Callable[[str],None]=None, verbose: bool=False) -> None:
+def catalog2tree(simulation: _Simulation, 
+                 treenode_base: str, 
+                 fields_copy: Sequence[str], 
+                 fields_derived: Mapping[str, Tuple[Sequence[str], Callable]], 
+                 output_file: str, 
+                 *,  # The following arguments are keyword-only
+                 temporary_path: str=None, 
+                 do_all2all_exchange: bool=False, 
+                 split_output: bool=False, 
+                 fail_on_desc_not_found: bool=True,
+                 rebalance_gio_read: bool=False, 
+                 mpi_waittime: float=0, 
+                 logger: Callable[[str],None]=None, 
+                 verbose: bool=False
+                 ) -> None:
+    """The main function that converts treenode-catalogs to treenode forests
+
+    [add basic outline of algorithm]
+
+    Parameters
+    ----------
+    
+    simulation: _Simulation
+
+    treenode_base: str
+
+    fields_copy: Sequenc
+
+    """
     # Set a timer for the full run
     total_timer = Timer("total time", logger=None)
     total_timer.start()

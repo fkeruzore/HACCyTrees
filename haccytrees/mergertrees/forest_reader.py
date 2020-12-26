@@ -145,6 +145,9 @@ def read_forest(filename: str, simulation: str, *,
 
 @numba.jit(nopython=True, parallel=True)
 def _get_mainbranch(snap_num, target_indices, mainbranch_matrix):
+    """
+
+    """
     ntargets = len(target_indices)
     nhalos = len(snap_num)
     for i in numba.prange(ntargets):

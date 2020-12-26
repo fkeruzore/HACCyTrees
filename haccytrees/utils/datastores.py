@@ -25,14 +25,6 @@ class GenericIOStore:
         The base filesystem path where temporary data is stored. If `None`, the 
         data will be kept in memory.
 
-    Methods
-    -------
-    __setitem__
-    __getitem__
-    get_field
-    pop
-    remove
-
     Examples
     --------
 

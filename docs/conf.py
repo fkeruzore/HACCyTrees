@@ -10,7 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os, sys
+import os, sys, shutil
 import re
 from pathlib import Path
 
@@ -32,15 +32,25 @@ author = 'Michael Buehlmann'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.autodoc.typehints',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
-    'numpydoc'
 ]
 
+autodoc_typehints = 'description'
+autodoc_type_aliases = {
+    'TreeDataT': 'haccytrees.utils.distribute.TreeDataT'
+}
+napoleon_type_aliases = {
+    "TreeDataT": "TTT",
+}
+
+
 autosummary_generate = False
-numpydoc_class_members_toctree = False
-numpydoc_attributes_as_param_list = False
-numpydoc_xref_param_type = False
+napoleon_numpy_docstring = True
+napoleon_use_admonition_for_examples = True
+napoleon_use_admonition_for_notes = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -57,6 +67,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
+html_theme_options = {
+    'prev_next_buttons_location': None
+}
 # html_theme = 'pydata_sphinx_theme'
 # html_theme_options = {
 #     'show_toc_level': 2,
@@ -81,9 +94,12 @@ def prepare(app):
     with open(DIR / "readme.rst", "w") as f:
         f.write(contents)
 
+    shutil.copyfile(DIR.parent / "tree_example.svg", DIR / "tree_example.svg")
+
 
 def clean_up(app, exception):
     (DIR / "readme.rst").unlink()
+    (DIR / "tree_example.svg").unlink()
 
 def setup(app):
     # Copy the readme in

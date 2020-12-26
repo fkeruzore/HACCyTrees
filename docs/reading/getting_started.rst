@@ -33,36 +33,13 @@ The returned `forest` is a dictionary containing one-dimensional numpy arrays
 Extracting Main-Branch Matrices
 -------------------------------
 
-.. code-block:: python
+Sometimes, only the main-branch (defined by following the most massive
+progenitor at each timestep) is needed. The function :func:`get_mainbranch_indices`
+is a convenient function to construct a matrix of shape `(n_targets x n_steps)`,
+where each column corresponds to the main branch of a halo, and each row 
+corresponds to an output step of the simulation.
 
-    # creating a target mask, e.g. halos with masses > 1e13 Msun/h
-    target_mask = (forest['snap_num'] == 100) & (forest['mass'] > 1e13)
-    target_idx = forest['halo_index'][target_mask]
-    
-    # this will create a matrix of shape (ntargets, nsteps), where each column 
-    # is the main progenitor branch of a target. It contains the indices to the 
-    # forest data, and is -1 if the halo does not exist at that time
-    mainbranch_index = haccytrees.mergertrees.get_mainbranch_indices(
-        forest, simulation='LastJourney', target_index=target_idx
-    )
-    
-    # Example: create the mass history for each target
-    active_mask = mainbranch_index != -1
-    mainbranch_mass = np.zeros_like(mainbranch_index, dtype=np.float32)
-    mainbranch_mass[active_mask] = forest['mass'][mainbranch_index[active_mask]]
-    
-    # this is just to get the scale factors associated with each step (matrix row)
-    simulation = haccytrees.simulation_lut['LastJourney']
-    scale_factors = simulation.step2a(np.array(simulation.cosmotools_steps))
-    
-    # plotting the average mass evolution for the halos in the mass bin
-    fig, ax = plt.subplots()
-    ax.plot(scale_factors, np.mean(mainbranch_mass, axis=0))
-    ax.set(
-        yscale='log', 
-        xlabel='scale factor $a$', 
-        ylabel=r'$\langle M_\mathrm{FoF} \rangle$ [$h^{-1}M_\odot$'
-    )
+
 
 --------------------------------------------------------------------------------
 
@@ -72,5 +49,3 @@ References
 .. autofunction:: read_forest
 
 .. autofunction:: get_mainbranch_indices
-
-.. autofunction:: split_fragment_tag

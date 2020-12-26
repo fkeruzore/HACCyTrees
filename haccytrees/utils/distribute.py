@@ -1,8 +1,49 @@
 from .partition import Partition, MPI
+from typing import Mapping, Tuple, Union, Callable
 import sys
 import numpy as np
 
-def distribute(partition: Partition, data: dict, xyz_keys=['x','y','z'], verbose=False, verify_count=True):
+TreeDataT = Mapping[str, np.ndarray]
+
+def distribute(partition: Partition, 
+               data: TreeDataT, 
+               xyz_keys: Tuple[str, str, str]=('x','y','z'), 
+               *,
+               verbose: Union[bool, int]=False, 
+               verify_count: bool=True) -> TreeDataT:
+    """Distribute data among MPI ranks according to partition
+
+    The position of each TreeData element is given by the x, y, and z columns
+    specified with `xyz_keys`.
+
+    Parameters
+    ----------
+
+    partition:
+        The MPI partition defining which rank should own which subvolume of the
+        data
+
+    data:
+        The treenode / coretree data that should be distributed
+
+    xyz_keys:
+        The columns in `data` that define the position of the object
+
+    verbose:
+        If True, print summary statistics of the distribute. If > 1, print
+        statistics of each rank (i.e. how much data each rank sends to every
+        other rank).
+
+    verify_count:
+        If True, make sure that total number of objects is conserved
+
+    Returns
+    -------
+    data: TreeDataT
+        The distributed treenode / coretree data (i.e. the data that this rank
+        owns)
+
+    """
     # get some MPI and partition parameters
     nranks = partition.nranks
     rank = partition.rank
@@ -84,7 +125,53 @@ def distribute(partition: Partition, data: dict, xyz_keys=['x','y','z'], verbose
     return data_new
 
 
-def overload(partition: Partition, data: dict, overload_length: float, xyz_keys=['x','y','z'], verbose=False):
+def overload(partition: Partition, 
+             data: TreeDataT, 
+             overload_length: float, 
+             xyz_keys: Tuple[str, str, str]=('x','y','z'), 
+             *,
+             verbose: Union[bool, int]=False, ):
+    """Copy data within an overload length to the 26 neighboring ranks
+
+    This method assumes that the volume cube is periodic and will wrap the data
+    around the boundary interfaces.
+
+    Parameters
+    ----------
+    partition:
+        The MPI partition defining which rank should own which subvolume of the
+        data
+
+    data:
+        The treenode / coretree data that should be distributed
+
+    overload_length:
+        The thickness of the boundary layer that will be copied to the
+        neighboring rank
+
+    xyz_keys:
+        The columns in `data` that define the position of the object
+
+    verbose:
+        If True, print summary statistics of the distribute. If > 1, print
+        statistics of each rank (i.e. how much data each rank sends to every
+        other rank).
+
+    Returns
+    -------
+    data: TreeDataT
+        The combined data of objects within the rank's subvolume as well as the
+        objects within the overload region of neighboring ranks
+
+    Notes
+    -----
+
+    The function does not change the objects' coordinates or alter any data. 
+    Objects that have been overloaded accross the periodic boundaries will still
+    have the original positions. In case "local" coordinates are required, this
+    will need to be done manually after calling this function.
+
+    """
     nranks = partition.nranks
     rank = partition.rank
     comm = partition.comm
@@ -191,13 +278,28 @@ def overload(partition: Partition, data: dict, overload_length: float, xyz_keys=
     return data_new
 
 
-def exchange(partition: Partition, data: dict, key: str, local_keys: np.ndarray, verbose=False, filter_key=None, do_all2all=False, replace_notfound_key=None):
+def exchange(partition: Partition, 
+             data: dict, 
+             key: str, 
+             local_keys: np.ndarray, 
+             *, 
+             verbose: bool=False, 
+             filter_key: Union[int, Callable[[np.ndarray], np.ndarray]]=None, 
+             do_all2all: bool=False, 
+             replace_notfound_key: int=None):
     """Exchange particles among ranks by key
 
     This function will assign data to the rank that owns the key. The keys that the local rank owns are given by
     "local_keys", which should be unique. The keys of the data that the local rank currently has is in "data[key]".
     Certain values can be ignored by setting filter_key to that value or by setting filter_key to a (vectorized) function 
     that returns True for keys that should be redistributed and False for keys that should be ignored.
+
+    Parameters
+    ----------
+
+
+    Returns
+    -------
     """
     comm = partition.comm
     rank = partition.rank

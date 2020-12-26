@@ -5,32 +5,38 @@
 
 .. include:: readme.rst
 
-.. only:: not latex
+.. only:: latex
    
-   Contents:
+   .. toctree::
+      :maxdepth: 2
 
-.. toctree::
-   :caption: Merger Forests
-   :maxdepth: 2
-
-   reading/layout
-   reading/getting_started
-   reading/visualization
-
-.. toctree::
-   :caption: Creating Merger Forests
-   :maxdepth: 1
-
-   creating/index
-
-.. toctree::
-   :caption: Extra utilities
-   :maxdepth: 1
+      self
    
-   utils/overview
-   utils/partition
-   utils/distribute
-   utils/temporary_storage
+   .. toctree::
+      :caption: Merger Forests
+      :maxdepth: 2
+   
+      reading/layout
+      reading/getting_started
+      reading/fragments
+      reading/visualization
+      reading/simulations
+      reading/examples
+   
+   .. toctree::
+      :caption: Creating Merger Forests
+      :maxdepth: 1
+   
+      creating/index
+   
+   .. toctree::
+      :caption: Extra utilities
+      :maxdepth: 1
+      
+      utils/overview
+      utils/partition
+      utils/distribute
+      utils/temporary_storage
 
 
 
