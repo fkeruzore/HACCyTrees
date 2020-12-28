@@ -2,7 +2,7 @@ import argparse
 import sys, traceback
 import numpy as np
 from mpi4py import MPI
-from haccytrees.simulations import simulation_lut, _Simulation
+from haccytrees.simulations import Simulation
 from haccytrees.mergertrees.catalogs2trees import catalog2tree
 
 fields_copy = [
@@ -25,7 +25,7 @@ fields_copy = [
 ]
 
 # SOD xoff
-def xoff_sod(data, simulation: _Simulation):
+def xoff_sod(data, simulation: Simulation):
     rl = simulation.rl
     dx = data['sod_halo_mean_x'] - data['sod_halo_min_pot_x']
     dx += (dx < -0.5*rl)*rl - (dx > 0.5*rl)*rl
@@ -37,7 +37,7 @@ def xoff_sod(data, simulation: _Simulation):
     return np.array(dd / data['sod_halo_radius'], dtype=np.float32)
 
 # FoF xoff
-def xoff_fof(data, simulation: _Simulation):
+def xoff_fof(data, simulation: Simulation):
     rl = simulation.rl
     dx = data['fof_halo_com_x'] - data['fof_halo_center_x']
     dx += (dx < -0.5*rl)*rl - (dx > 0.5*rl)*rl
@@ -49,7 +49,7 @@ def xoff_fof(data, simulation: _Simulation):
     return np.array(dd / data['sod_halo_radius'], dtype=np.float32)
 
 # CoM xoff
-def xoff_com(data, simulation: _Simulation):
+def xoff_com(data, simulation: Simulation):
     rl = simulation.rl
     dx = data['fof_halo_com_x'] - data['sod_halo_mean_x']
     dx += (dx < -0.5*rl)*rl - (dx > 0.5*rl)*rl
@@ -80,7 +80,7 @@ def logger(x, **kwargs):
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
-    parser.add_argument("simulation", choices=list(simulation_lut.keys()))
+    parser.add_argument("simulation", choices=list(Simulation.simulations.keys()))
     parser.add_argument("treenode_base", type=str)
     parser.add_argument("output_file")
     parser.add_argument("--temporary_path")
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true")
 
     args = parser.parse_args()
-    simulation = simulation_lut[args.simulation]
+    simulation = Simulation.simulations[args.simulation]
 
     # make sure to catch errors and call MPI Abort
     try:

@@ -4,7 +4,7 @@ import pygio
 import numba
 import gc, sys
 
-from ..simulations import _Simulation
+from ..simulations import Simulation
 from ..utils.partition import Partition
 from ..utils.distribute import distribute, exchange
 from ..utils.timer import Timer, time
@@ -135,7 +135,7 @@ def _read_data(partition, simulation, filename, logger, fields_copy, fields_deri
     return data_new    
 
 
-def _catalog2tree_step(step: int, data_by_step, index_by_step, size_by_step, local_desc, partition: Partition, simulation: _Simulation, treenode_base: str, fields_copy: list, fields_derived: dict,
+def _catalog2tree_step(step: int, data_by_step, index_by_step, size_by_step, local_desc, partition: Partition, simulation: Simulation, treenode_base: str, fields_copy: list, fields_derived: dict,
                  do_all2all_exchange, fail_on_desc_not_found, rebalance_gio_read, verbose, logger):
     logger(f'\nSTEP {step:3d}\n--------\n')
         
@@ -174,7 +174,7 @@ def _catalog2tree_step(step: int, data_by_step, index_by_step, size_by_step, loc
     return local_ids
 
 
-def catalog2tree(simulation: _Simulation, 
+def catalog2tree(simulation: Simulation, 
                  treenode_base: str, 
                  fields_copy: Sequence[str], 
                  fields_derived: Mapping[str, Tuple[Sequence[str], Callable]], 
@@ -196,11 +196,11 @@ def catalog2tree(simulation: _Simulation,
     Parameters
     ----------
     
-    simulation: _Simulation
+    simulation:
 
-    treenode_base: str
+    treenode_base:
 
-    fields_copy: Sequenc
+    fields_copy:
 
     """
     # Set a timer for the full run

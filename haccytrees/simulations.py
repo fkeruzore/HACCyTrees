@@ -1,8 +1,10 @@
 import dataclasses
-from typing import List
+from typing import List, ClassVar, Dict
 
-@dataclasses.dataclass
-class _Cosmology:
+rhoc = 2.77536627e11
+@dataclasses.dataclass(frozen=True)
+class Cosmology:
+    name: str
     Omega_m: float
     Omega_b: float
     Omega_L: float
@@ -10,18 +12,35 @@ class _Cosmology:
     ns: float
     s8: float
 
+    cosmologies: ClassVar[Dict] = {}
 
-@dataclasses.dataclass
-class _Simulation:
-    nsteps: int = 500
-    zstart: float = 200.0
-    zfin: float = 0.0
-    rl: float = 0.0
-    ng: int = 1
-    np: int = 1
-    cosmo: _Cosmology = _Cosmology(0.3, 0.05, 0.7, 0.7, 0.96, 0.8)
-    cosmotools_steps: List[int] = dataclasses.field(default_factory=list)
-    fullalive_steps: List[int] = dataclasses.field(default_factory=list)
+    def __post_init__(self):
+        Cosmology.cosmologies[self.name] = self
+
+    def __repr__(self):
+        return f"Cosmology({self.name})"
+
+
+@dataclasses.dataclass(frozen=True)
+class Simulation:
+    name: str
+    nsteps: int
+    zstart: float
+    zfin: float
+    rl: float
+    ng: int
+    np: int
+    cosmo: Cosmology
+    cosmotools_steps: List[int]
+    fullalive_steps: List[int]
+
+    simulations: ClassVar[Dict] = {}
+
+    def __post_init__(self):
+        Simulation.simulations[self.name] = self
+
+    def __repr__(self):
+        return f"Simulation({self.name}: RL={self.rl} NP={self.np}, NG={self.ng})"
 
     def step2a(self, step):
         aini = 1/(self.zstart + 1)
@@ -31,9 +50,14 @@ class _Simulation:
     def step2z(self, step):
         return 1/self.step2a(step) - 1
 
+    @property
+    def particle_mass(self):
+        return rhoc * self.cosmo.Omega_m * (self.rl/self.np)**3
+
 
 # Cosmological parameters used for LJ
-LastJourneyCosmo = _Cosmology(
+LastJourneyCosmo = Cosmology(
+    "LastJourneyCosmo",
     Omega_m = 0.26067,
     Omega_b = 0.02242 / 0.6766**2,
     Omega_L = 1 - 0.26067,
@@ -42,11 +66,15 @@ LastJourneyCosmo = _Cosmology(
     s8 = 0.8102
     )
 
-LastJourney = _Simulation(
+LastJourney = Simulation(
+    name="LastJourney",
     cosmo=LastJourneyCosmo,
     rl=3400,
     ng=10752,
     np=10752,
+    nsteps=500,
+    zstart=200.,
+    zfin=0.,
     cosmotools_steps=[
         42, 43, 44, 45, 46, 48, 49, 50, 52, 53, 54, 56, 57, 59, 60, 
         62, 63, 65, 67, 68, 70, 72, 74, 76, 77, 79, 81, 84, 86, 88, 
@@ -67,9 +95,9 @@ LastJourney = _Simulation(
         442, 453, 464, 475, 487, 499]
 )
     
-LastJourneySV = dataclasses.replace(LastJourney, rl=250, ng=1024, np=1024)
-
-simulation_lut = {
-    'LastJourney': LastJourney,
-    'LastJourneySV': LastJourneySV
-}
+LastJourneySV = dataclasses.replace(
+    LastJourney, 
+    name="LastJourneySV", 
+    rl=250, 
+    ng=1024, 
+    np=1024)

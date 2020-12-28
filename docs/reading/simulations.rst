@@ -4,6 +4,20 @@ Simulations
 .. currentmodule:: haccytrees.simulations
 
 
-.. autoclass:: _Cosmology
+Available simulations
+---------------------
 
-.. autoclass:: _Simulation
+.. include:: ../simulations.inc
+
+
+--------------------------------------------------------------------------------
+
+References
+----------
+
+.. autoclass:: Cosmology
+   :members:
+
+
+.. autoclass:: Simulation
+   :members:

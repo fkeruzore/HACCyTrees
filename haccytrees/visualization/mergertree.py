@@ -2,7 +2,7 @@ import numpy as np
 from collections import namedtuple
 import drawSvg
 import matplotlib
-
+from typing import Mapping, Union
 
 class _Halo(namedtuple("_Halo", ['id', 'mass', 'freemassacc', 'scale_fac', 'snap_num', 'depth', 'progenitors'])):
     __slots__ = ()
@@ -131,7 +131,79 @@ def _tree_recursive(hroot, hlist, hloc, snaplists, padding, align):
     return hv, hy
 
 
-def merger_tree_drawing(trees, progenitor_array, target_idx, max_steps=10, mass_threshold=1e10, method='block', padding=0.05, aspect=2, height=600, cmap='viridis', coloring='branch', **kwargs):
+def merger_tree_drawing(
+        trees: Mapping[str, np.ndarray], 
+        progenitor_array: np.ndarray, 
+        target_idx: int, 
+        *,
+        max_steps: int=20, 
+        mass_threshold: float=1e10, 
+        method: str='block', 
+        padding: float=0.05, 
+        width: int=1200, 
+        height: int=600, 
+        cmap: Union[str, matplotlib.colors.Colormap]='viridis', 
+        coloring: str='branch', 
+        **kwargs) -> drawSvg.Drawing:
+    """Visualize the merger-tree as an svg
+
+    Parameters
+    ----------
+    trees
+        the full merger tree forest
+
+    progenitor_array
+        the progenitor array returned by :func:`haccytrees.read_forest`
+
+    target_idx
+        the root index of the halo which is to be visualized
+
+    max_steps
+        the number of progenitor steps that are being visualized
+
+    mass_threshold
+        all progenitors below this threshold will be skipped
+
+    method
+        the drawing method that determines the y-position of each progenitor.
+        See the notes for valid options
+
+    padding
+        determines the fraction of padding along the y-axis between neighboring
+        progenitors
+
+    width
+        the width of the svg
+
+    height
+        the height of the svg
+
+    cmap
+        the colormap that is used to differentiate the branches
+
+    coloring
+        if ``"branch"``, will color each branch differently. If ``None``, all
+        branches will be drawn in black
+
+    kwargs
+        TODO: add additional arguments
+
+    Returns
+    -------
+    drawing: drawSvg.Drawing
+        the svg
+
+    Notes
+    -----
+
+    Valid ``methods`` are:
+
+    - recursive-center
+    - recursive-bottom
+    - center
+    - block
+    - bottom
+    """
     # Some config
     soft = kwargs.get('soft', 0.5)
     nodewidth = kwargs.get('nodewidth', max_steps)
@@ -140,6 +212,7 @@ def merger_tree_drawing(trees, progenitor_array, target_idx, max_steps=10, mass_
     highlight_mm = kwargs.get('highlight_mm', False)
     if cmap is not None and isinstance(cmap, str):
         cmap = matplotlib.pyplot.get_cmap(cmap)
+    aspect = width/height
     
     # Get Data
     hdict, hroot, snaplists = _extract_tree(trees, progenitor_array, target_idx, mass_threshold=mass_threshold, max_steps=max_steps)

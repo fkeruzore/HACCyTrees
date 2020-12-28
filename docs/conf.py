@@ -10,7 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os, sys, shutil
+import os, sys, shutil, subprocess
 import re
 from pathlib import Path
 
@@ -96,10 +96,13 @@ def prepare(app):
 
     shutil.copyfile(DIR.parent / "tree_example.svg", DIR / "tree_example.svg")
 
+    subprocess.run([sys.executable, 'document_simulations.py', 'simulations.inc'])
+
 
 def clean_up(app, exception):
     (DIR / "readme.rst").unlink()
     (DIR / "tree_example.svg").unlink()
+    (DIR / 'simulations.inc').unlink()
 
 def setup(app):
     # Copy the readme in

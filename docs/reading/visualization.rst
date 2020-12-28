@@ -5,6 +5,9 @@ Visualization
 
 [Some example script]
 
+.. image:: ../tree_example.svg
+   :width: 100%
+
 --------------------------------------------------------------------------------
 
 References

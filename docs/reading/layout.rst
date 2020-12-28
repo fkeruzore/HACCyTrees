@@ -1,4 +1,4 @@
-Merger Forest layout
+Merger Forest Layout
 ====================
 
 [Describe merger forest format / layout]

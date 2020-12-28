@@ -1,1 +1,2 @@
-from .simulations import simulation_lut
+from .simulations import Simulation
+# from .mergertrees import read_forest

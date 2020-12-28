@@ -45,7 +45,7 @@ Average Mass-Growth
         
         
     # this is just to get the scale factors associated with each step (matrix row)
-    simulation = haccytrees.simulation_lut['LastJourney']
+    simulation = haccytrees.Simulation.simulations['LastJourney']
     scale_factors = simulation.step2a(np.array(simulation.cosmotools_steps))
 
     # plotting the average mass evolution

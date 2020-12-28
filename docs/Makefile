@@ -14,7 +14,10 @@ help:
 
 .PHONY: help Makefile
 
+# simulations.inc:
+# 	python ./document_simulations.py
+
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
-%: Makefile
+%: Makefile #simulations.inc
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
