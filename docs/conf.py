@@ -105,6 +105,7 @@ def clean_up(app, exception):
     (DIR / 'simulations.inc').unlink()
 
 def setup(app):
+    app.add_stylesheet('custom.css')
     # Copy the readme in
     app.connect("builder-inited", prepare)
 
