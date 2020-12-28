@@ -36,7 +36,10 @@ extensions = [
     'sphinx.ext.autodoc.typehints',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
+    'sphinx.ext.autosectionlabel',
 ]
+
+autosectionlabel_prefix_document = True
 
 autodoc_typehints = 'description'
 autodoc_type_aliases = {
@@ -105,7 +108,7 @@ def clean_up(app, exception):
     (DIR / 'simulations.inc').unlink()
 
 def setup(app):
-    app.add_stylesheet('custom.css')
+    app.add_stylesheet('css/custom.css')
     # Copy the readme in
     app.connect("builder-inited", prepare)
 
