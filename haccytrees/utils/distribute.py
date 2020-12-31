@@ -11,7 +11,7 @@ def distribute(partition: Partition,
                *,
                verbose: Union[bool, int]=False, 
                verify_count: bool=True) -> TreeDataT:
-    """Distribute data among MPI ranks according to partition
+    """Distribute data among MPI ranks according to data position and volume partition
 
     The position of each TreeData element is given by the x, y, and z columns
     specified with `xyz_keys`.
@@ -293,12 +293,12 @@ def exchange(partition: Partition,
              filter_key: Union[int, Callable[[np.ndarray], np.ndarray]]=None, 
              do_all2all: bool=False, 
              replace_notfound_key: int=None):
-    """Exchange particles among ranks by key
+    """Distribute data among neighboring ranks and all2all by a key
 
     This function will assign data to the rank that owns the key. The keys that the local rank owns are given by
-    "local_keys", which should be unique. The keys of the data that the local rank currently has is in "data[key]".
+    ``local_keys``, which should be unique. The keys of the data that the local rank currently has is in ``data[key]``.
     Certain values can be ignored by setting filter_key to that value or by setting filter_key to a (vectorized) function 
-    that returns True for keys that should be redistributed and False for keys that should be ignored.
+    that returns ``True`` for keys that should be redistributed and ``False`` for keys that should be ignored.
 
     Parameters
     ----------

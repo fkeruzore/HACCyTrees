@@ -1,3 +1,7 @@
+"""Assembling Merger Tree Forests from treenode Catalogs
+
+"""
+
 from mpi4py import MPI
 import argparse
 import os, sys, traceback

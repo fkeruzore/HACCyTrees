@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 
 DIR = Path(__file__).parent.resolve()
+sys.path.insert(0, os.path.abspath('../executables'))
 sys.path.insert(0, os.path.abspath('../haccytrees'))
 
 

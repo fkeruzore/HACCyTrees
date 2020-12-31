@@ -1,6 +1,16 @@
 Creating Merger Forests
 =======================
 
+Outline
+-------
+
+.. automodule:: treenodes2forest
+
+Configuration
+-------------
+
+.. literalinclude:: ../../executables/treenodes2forest.example.cfg
+
 
 Example: Last Journey 
 ---------------------
@@ -18,4 +28,4 @@ the data comparably took an insignificant amount of time.
 References
 ----------
 
-.. autofunction:: haccytrees.mergertrees.catalogs2trees.catalog2tree
+.. autofunction:: haccytrees.mergertrees.assemble.catalog2tree
