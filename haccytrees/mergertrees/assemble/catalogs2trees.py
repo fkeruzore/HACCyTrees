@@ -1,30 +1,17 @@
-from typing import Callable, Sequence, Mapping, Tuple
+from typing import Callable, List, Mapping, Tuple, Union
 import numpy as np
 import pygio
 import numba
 import gc, sys
 
-from ..simulations import Simulation
-from ..utils.partition import Partition
-from ..utils.distribute import distribute, exchange
-from ..utils.timer import Timer, time
-from ..utils.datastores import GenericIOStore, NumpyStore
-from ..utils.memory import debug_memory
+from ...simulations import Simulation
+from ...utils.partition import Partition
+from ...utils.distribute import distribute, exchange
+from ...utils.timer import Timer, time
+from ...utils.datastores import GenericIOStore, NumpyStore
+from ...utils.memory import debug_memory
 from .catalogs2trees_hdf5_output import write2multiple, write2single
-
-
-# Required columns to run the algorithm
-_fields_essential = [
-    "tree_node_index",
-    "desc_node_index",
-    'fof_halo_center_x',
-    'fof_halo_center_y',
-    'fof_halo_center_z',
-    "tree_node_mass",
-]
-
-# Coordinates that will be used to assign halos initially
-_fields_xyz = ['fof_halo_center_x', 'fof_halo_center_y', 'fof_halo_center_z']
+from .fieldsconfig import FieldsConfig
 
 
 @numba.jit(nopython=True)
@@ -101,47 +88,63 @@ def _fill_branch_pos(branch_position, parent_branch_position, branch_size, desc_
     return current_pos
 
 
-def _read_data(partition, simulation, filename, logger, fields_copy, fields_derived, rebalance, verbose):
-    # List of elements that needs to be read
-    fields_read = _fields_essential + fields_copy + sum([f[0] for k, f in fields_derived.items()], [])
-    # make unique (need to sort, otherwise ordering not deterministic, which screws up MPI)
-    fields_read = sorted(list(set(fields_read)))
+def _read_data(partition: Partition, simulation: Simulation, filename: str, logger: Callable, fields_config: FieldsConfig, rebalance: bool, verbose: bool):
+    fields_xyz = [fields_config.node_position_x, fields_config.node_position_y, fields_config.node_position_z]
 
     with Timer(name="read treenodes: read genericio", logger=logger):
-        data = pygio.read_genericio(filename, fields_read, 
+        data = pygio.read_genericio(filename, fields_config.read_fields, 
             method=pygio.PyGenericIO.FileIO.FileIOMPI,
             rebalance_sourceranks=rebalance
             )
 
     # normalize data
-    for k in _fields_xyz:
+    for k in fields_xyz:
         data[k] = np.remainder(data[k], simulation.rl)
 
     # assign to rank by position
     with Timer(name="read treenodes: distribute", logger=logger):
-        data = distribute(partition, data, _fields_xyz, verbose=verbose, verify_count=True)
+        data = distribute(partition, data, fields_xyz, verbose=verbose, verify_count=True)
     
     # calculate derived fields
     with Timer(name="read treenodes: calculate derived fields", logger=logger):
-        for k, f in fields_derived.items():
-            data[k] = f[1](data, simulation)
+        for k, f in fields_config.derived_fields.items():
+            data[k] = f(data)
 
     # only keep necessary fields
     data_new = {}
-    keys = sorted(list(set(_fields_essential + fields_copy + list(fields_derived.keys()))))
-    for k in keys:
+    for k in fields_config.keep_fields:
         data_new[k] = data[k]
 
     return data_new    
 
 
-def _catalog2tree_step(step: int, data_by_step, index_by_step, size_by_step, local_desc, partition: Partition, simulation: Simulation, treenode_base: str, fields_copy: list, fields_derived: dict,
-                 do_all2all_exchange, fail_on_desc_not_found, rebalance_gio_read, verbose, logger):
+def _catalog2tree_step(
+        step: int, 
+        data_store: Union[GenericIOStore, Mapping], 
+        index_store: Union[NumpyStore, Mapping],
+        size_store: Mapping, 
+        local_desc: np.ndarray, 
+        partition: Partition, 
+        simulation: Simulation, 
+        treenode_base: str, 
+        fields_config: FieldsConfig,
+        do_all2all_exchange: bool, 
+        fail_on_desc_not_found: bool, 
+        rebalance_gio_read: bool, 
+        verbose: Union[bool, int], 
+        logger: Callable[[str], None]
+        ):
     logger(f'\nSTEP {step:3d}\n--------\n')
         
     # read data and calculate derived fields (contains its own timers)
     with Timer(name="read treenodes", logger=logger):
-        data = _read_data(partition, simulation, f"{treenode_base}-{step}.treenodes", logger, fields_copy, fields_derived, rebalance=rebalance_gio_read, verbose=verbose)
+        data = _read_data(partition=partition, 
+                          simulation=simulation, 
+                          filename=f"{treenode_base}-{step}.treenodes", 
+                          logger=logger, 
+                          fields_config=fields_config, 
+                          rebalance=rebalance_gio_read, 
+                          verbose=verbose)
 
     # exchange progenitors that belong to neighboring ranks
     with Timer(name="exchange descendants", logger=logger):
@@ -149,17 +152,21 @@ def _catalog2tree_step(step: int, data_by_step, index_by_step, size_by_step, loc
             na_desc_key = None
         else:
             na_desc_key = -1
-        data = exchange(partition, data, 'desc_node_index', local_desc, filter_key=lambda idx: idx >= 0, verbose=verbose, do_all2all=do_all2all_exchange, replace_notfound_key=na_desc_key)
+        data = exchange(partition, data, fields_config.desc_node_index, local_desc, 
+                        filter_key=lambda idx: idx >= 0, 
+                        verbose=verbose, 
+                        do_all2all=do_all2all_exchange, 
+                        replace_notfound_key=na_desc_key)
 
     # sort array by descendant index, most massive first
     with Timer(name="sort arrays", logger=logger):
-        s = np.lexsort((data['desc_node_index'], data['tree_node_mass']))[::-1]
+        s = np.lexsort((data[fields_config.desc_node_index], data[fields_config.tree_node_mass]))[::-1]
         for k in data.keys():
             data[k] = data[k][s]
 
     # get index to descendant for each progenitor, and an inverse list of progenitors for each descendant
     with Timer(name="assign progenitors", logger=logger):
-        desc_idx, progenitor_array, progenitor_offsets = _descendant_index(local_desc, data['desc_node_index'])
+        desc_idx, progenitor_array, progenitor_offsets = _descendant_index(local_desc, data[fields_config.desc_node_index])
         if progenitor_array.min() < 0:
             print(f"invalid progenitor array on rank {partition.rank}", file=sys.stderr, flush=True)
             partition.comm.Abort()
@@ -167,17 +174,16 @@ def _catalog2tree_step(step: int, data_by_step, index_by_step, size_by_step, loc
     local_ids = data['tree_node_index']
 
     # store data
-    data_by_step[step] = data
-    index_by_step[step] = {'desc_idx': desc_idx, 'progenitor_array': progenitor_array, 'progenitor_offsets': progenitor_offsets}
-    size_by_step[step] = len(local_ids)
+    data_store[step] = data
+    index_store[step] = {'desc_idx': desc_idx, 'progenitor_array': progenitor_array, 'progenitor_offsets': progenitor_offsets}
+    size_store[step] = len(local_ids)
     
     return local_ids
 
 
 def catalog2tree(simulation: Simulation, 
-                 treenode_base: str, 
-                 fields_copy: Sequence[str], 
-                 fields_derived: Mapping[str, Tuple[Sequence[str], Callable]], 
+                 treenode_base: str,
+                 fields_config: FieldsConfig,
                  output_file: str, 
                  *,  # The following arguments are keyword-only
                  temporary_path: str=None, 
@@ -187,20 +193,39 @@ def catalog2tree(simulation: Simulation,
                  rebalance_gio_read: bool=False, 
                  mpi_waittime: float=0, 
                  logger: Callable[[str],None]=None, 
-                 verbose: bool=False
+                 verbose: Union[bool, int]=False
                  ) -> None:
-    """The main function that converts treenode-catalogs to treenode forests
+    """The main routine that converts treenode-catalogs to HDF5 treenode forests
 
     [add basic outline of algorithm]
 
     Parameters
     ----------
-    
-    simulation:
+    simulation
 
-    treenode_base:
+    treenode_base
 
-    fields_copy:
+    fields_copy
+
+    fields_derived
+
+    output_file
+
+    temporary_path
+
+    do_all2all_exchange
+
+    split_output
+
+    fail_on_desc_not_found
+
+    rebalance_gio_read
+
+    mpi_waittime
+
+    logger
+
+    verbose
 
     """
     # Set a timer for the full run
@@ -252,15 +277,15 @@ def catalog2tree(simulation: Simulation,
 
     # read final snapshot (tree roots)
     with Timer(name="read treenodes", logger=logger):
-        data = _read_data(partition, simulation, f"{treenode_base}-{steps[-1]}.treenodes", logger, fields_copy, fields_derived, rebalance=rebalance_gio_read, verbose=verbose)
+        data = _read_data(partition, simulation, f"{treenode_base}-{steps[-1]}.treenodes", logger, fields_config, rebalance=rebalance_gio_read, verbose=verbose)
 
     # sort by tree_node_index
     with Timer(name="sort arrays", logger=logger):
-        s = np.argsort(data['tree_node_index'])
+        s = np.argsort(data[fields_config.tree_node_index])
         for k in data.keys():
             data[k] = data[k][s]
 
-    local_ids = data['tree_node_index']
+    local_ids = data[fields_config.tree_node_index]
     dtypes = {k: i.dtype for k, i in data.items()}
 
     # Containers to store local data from each snapshot
@@ -276,7 +301,7 @@ def catalog2tree(simulation: Simulation,
 
     # iterate over previous snapshots: read, assign, prepare ordering
     for step in steps[-2::-1]:
-        local_ids = _catalog2tree_step(step, data_by_step, index_by_step, size_by_step, local_ids, partition, simulation, treenode_base, fields_copy, fields_derived, do_all2all_exchange, fail_on_desc_not_found, rebalance_gio_read, verbose, logger) 
+        local_ids = _catalog2tree_step(step, data_by_step, index_by_step, size_by_step, local_ids, partition, simulation, treenode_base, fields_config, do_all2all_exchange, fail_on_desc_not_found, rebalance_gio_read, verbose, logger) 
         gc.collect()  # explicitly free memory
         if verbose:
             debug_memory(partition, "AFTER GC")
@@ -332,11 +357,10 @@ def catalog2tree(simulation: Simulation,
 
     # write data
     with Timer("output HDF5 forest", logger=logger):
-        fields_write = fields_copy + list(fields_derived.keys())
         if split_output:
-            write2multiple(partition, steps, local_size, branch_sizes, branch_positions, data_by_step, fields_write, dtypes, output_file, logger)
+            write2multiple(partition, steps, local_size, branch_sizes, branch_positions, data_by_step, fields_config, dtypes, output_file, logger)
         else:
-            write2single(partition, steps, local_size, branch_sizes, branch_positions, data_by_step, fields_write, dtypes, output_file, logger)
+            write2single(partition, steps, local_size, branch_sizes, branch_positions, data_by_step, fields_config, dtypes, output_file, logger)
 
     logger("cleanup...")
     for step in simulation.cosmotools_steps:

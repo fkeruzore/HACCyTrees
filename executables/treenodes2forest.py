@@ -1,76 +1,17 @@
-import argparse
-import sys, traceback
-import numpy as np
 from mpi4py import MPI
+import argparse
+import os, sys, traceback
+import configparser, json
+from typing import Dict, Any
+
 from haccytrees.simulations import Simulation
-from haccytrees.mergertrees.catalogs2trees import catalog2tree
-
-fields_copy = [
-    "tree_node_index",
-    "desc_node_index",
-    "tree_node_mass",
-    "fof_halo_tag",
-    "fof_halo_count",
-    "fof_halo_mass",
-    "sod_halo_count",
-    "sod_halo_mass",
-    "sod_halo_radius",
-    "sod_halo_cdelta",
-    "sod_halo_c_acc_mass",
-    "sod_halo_c_peak_mass",
-    "sod_halo_cdelta_error",
-    "fof_halo_center_x",
-    "fof_halo_center_y",
-    "fof_halo_center_z",
-]
-
-# SOD xoff
-def xoff_sod(data, simulation: Simulation):
-    rl = simulation.rl
-    dx = data['sod_halo_mean_x'] - data['sod_halo_min_pot_x']
-    dx += (dx < -0.5*rl)*rl - (dx > 0.5*rl)*rl
-    dy = data['sod_halo_mean_y'] - data['sod_halo_min_pot_y']
-    dy += (dy < -0.5*rl)*rl - (dy > 0.5*rl)*rl
-    dz = data['sod_halo_mean_z'] - data['sod_halo_min_pot_z']
-    dz += (dz < -0.5*rl)*rl - (dz > 0.5*rl)*rl
-    dd = np.sqrt(dx**2 + dy**2 + dz**2)
-    return np.array(dd / data['sod_halo_radius'], dtype=np.float32)
-
-# FoF xoff
-def xoff_fof(data, simulation: Simulation):
-    rl = simulation.rl
-    dx = data['fof_halo_com_x'] - data['fof_halo_center_x']
-    dx += (dx < -0.5*rl)*rl - (dx > 0.5*rl)*rl
-    dy = data['fof_halo_com_y'] - data['fof_halo_center_y']
-    dy += (dy < -0.5*rl)*rl - (dy > 0.5*rl)*rl
-    dz = data['fof_halo_com_z'] - data['fof_halo_center_z']
-    dz += (dz < -0.5*rl)*rl - (dz > 0.5*rl)*rl
-    dd = np.sqrt(dx**2 + dy**2 + dz**2)
-    return np.array(dd / data['sod_halo_radius'], dtype=np.float32)
-
-# CoM xoff
-def xoff_com(data, simulation: Simulation):
-    rl = simulation.rl
-    dx = data['fof_halo_com_x'] - data['sod_halo_mean_x']
-    dx += (dx < -0.5*rl)*rl - (dx > 0.5*rl)*rl
-    dy = data['fof_halo_com_y'] - data['sod_halo_mean_y']
-    dy += (dy < -0.5*rl)*rl - (dy > 0.5*rl)*rl
-    dz = data['fof_halo_com_z'] - data['sod_halo_mean_z']
-    dz += (dz < -0.5*rl)*rl - (dz > 0.5*rl)*rl
-    dd = np.sqrt(dx**2 + dy**2 + dz**2)
-    return np.array(dd / data['sod_halo_radius'], dtype=np.float32)
-
-
-fields_derived = {
-    'xoff_fof': (['fof_halo_com_x', 'fof_halo_com_y', 'fof_halo_com_z', 'fof_halo_center_x', 'fof_halo_center_y', 'fof_halo_center_z', 'sod_halo_radius'], xoff_fof),
-    'xoff_sod': (['sod_halo_mean_x', 'sod_halo_mean_y', 'sod_halo_mean_z', 'sod_halo_min_pot_x', 'sod_halo_min_pot_y', 'sod_halo_min_pot_z', 'sod_halo_radius'], xoff_sod),
-    'xoff_com': (['sod_halo_mean_x', 'sod_halo_mean_y', 'sod_halo_mean_z', 'fof_halo_com_x', 'fof_halo_com_y', 'fof_halo_com_z', 'sod_halo_radius'], xoff_com),
-}
+from haccytrees.mergertrees.assemble import FieldsConfig, catalog2tree, DerivedFields
 
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nranks = comm.Get_size()
+
 
 def logger(x, **kwargs):
     kwargs.pop("flush", None)
@@ -78,34 +19,85 @@ def logger(x, **kwargs):
     if rank == 0:
         print(x, flush=True, **kwargs)
 
+
+def parse_config(config: configparser.ConfigParser) -> Dict[str, Any]:
+    # Input
+    simulation = config['simulation']['simulation']
+    simulation = Simulation.simulations[simulation]
+    
+    treenode_base = config['simulation']['treenode_base']
+    rebalance_gio_read = config['simulation'].getboolean('rebalance_gio_read', fallback=False)
+
+    # Output
+    output_base = config['output']['output_base']
+    split_output = config['output'].getboolean('split_output', fallback=True)
+    temporary_path = config['output'].get('temporary_path', fallback=None)
+
+    # Algorithm
+    fail_on_desc_not_found = config['algorithm'].getboolean('fail_on_desc_not_found', fallback=True)
+    do_all2all_exchange = config['algorithm'].getboolean('do_all2all_exchange', fallback=False)
+    mpi_waittime = config['algorithm'].getfloat('mpi_waittime', fallback=0)
+    verbose = config['algorithm'].getint('verbose', fallback=0)
+
+    # Fields
+    fields_config = FieldsConfig(**config['columns'])
+    df = DerivedFields(simulation, fields_config)
+    derived_fields = json.loads(config['output'].get('derived_fields', fallback="[]"))
+    derived_fields = [df.derived_fields[d] for d in derived_fields]
+    output_fields = json.loads(config['output']['copy_fields'])
+    output_fields = [(s, s) if isinstance(s, str) else (s[0], s[1]) for s in output_fields]
+
+    # what we need to read, keep, and output
+    fields_config.read_fields = sorted(list(set(fields_config.get_essential()) | set(o[0] for o in output_fields) | set(s for d in derived_fields for s in d.requirements)))
+    fields_config.keep_fields = sorted(list(set(fields_config.get_essential()) | set(o[0] for o in output_fields) | set(d.name for d in derived_fields)))
+    fields_config.output_fields = output_fields
+    fields_config.derived_fields = {d.name: d.function for d in derived_fields}
+
+    return {
+        'simulation': simulation,
+        'treenode_base': treenode_base,
+        'rebalance_gio_read': rebalance_gio_read,
+        'output_base': output_base,
+        'split_output': split_output,
+        'temporary_path': temporary_path,
+        'fail_on_desc_not_found': fail_on_desc_not_found,
+        'do_all2all_exchange': do_all2all_exchange,
+        'mpi_waittime': mpi_waittime,
+        'verbose': verbose,
+        'fields_config': fields_config
+    }
+
+
+
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
-    parser.add_argument("simulation", choices=list(Simulation.simulations.keys()))
-    parser.add_argument("treenode_base", type=str)
-    parser.add_argument("output_file")
-    parser.add_argument("--temporary_path")
-    parser.add_argument("--do-all2all-exchange", action='store_true')
-    parser.add_argument("--split-output", action='store_true')
-    parser.add_argument("--continue-on-desc-not-found", action='store_true')
-    parser.add_argument("--rebalance-gio-read", action='store_true')
-    parser.add_argument("--mpi-waittime", type=float, default=0)
-    parser.add_argument("--verbose", action="store_true")
-
+    parser.add_argument("config", type=str)
     args = parser.parse_args()
-    simulation = Simulation.simulations[args.simulation]
+    if not os.path.exists(args.config):
+        print(f"Invalid config path: {args.config}", file=sys.stderr, flush=True)
+        comm.Abort(-102)
 
-    # make sure to catch errors and call MPI Abort
+    config = configparser.ConfigParser()
+    config.read(args.config)
+
+    config = parse_config(config)
+
     try:
-        catalog2tree(simulation, args.treenode_base, fields_copy, fields_derived, 
-                    output_file=args.output_file, 
-                    temporary_path=args.temporary_path, 
-                    do_all2all_exchange=args.do_all2all_exchange, 
-                    split_output=args.split_output, 
-                    fail_on_desc_not_found=not args.continue_on_desc_not_found,
-                    rebalance_gio_read=args.rebalance_gio_read,
-                    mpi_waittime=args.mpi_waittime,
-                    verbose=args.verbose)
+        catalog2tree(
+            simulation             = config['simulation'], 
+            treenode_base          = config['treenode_base'],
+            fields_config          = config['fields_config'],
+            output_file            = config['output_base'], 
+            temporary_path         = config['temporary_path'], 
+            do_all2all_exchange    = config['do_all2all_exchange'], 
+            split_output           = config['split_output'], 
+            fail_on_desc_not_found = config['fail_on_desc_not_found'],
+            rebalance_gio_read     = config['rebalance_gio_read'],
+            mpi_waittime           = config['mpi_waittime'],
+            verbose                = config['verbose']
+            )
     except Exception as e:
-        print(f"Uncaught error: {e}")
+        print(f"Uncaught error: {e}", file=sys.stderr, flush=True)
         print(traceback.format_exc(), file=sys.stderr, flush=True)
         comm.Abort(-101)
+    

@@ -46,6 +46,9 @@ def distribute(partition: Partition,
     """
     # get some MPI and partition parameters
     nranks = partition.nranks
+    if nranks == 1:
+        return data
+
     rank = partition.rank
     comm = partition.comm
     ranklist = np.array(partition.ranklist)
@@ -173,6 +176,9 @@ def overload(partition: Partition,
 
     """
     nranks = partition.nranks
+    if nranks == 1:
+        return data
+
     rank = partition.rank
     comm = partition.comm
 
@@ -304,6 +310,8 @@ def exchange(partition: Partition,
     comm = partition.comm
     rank = partition.rank
     nranks = partition.nranks
+    if nranks == 1:
+        return data
 
     if do_all2all:
         # exchange particles with all ranks

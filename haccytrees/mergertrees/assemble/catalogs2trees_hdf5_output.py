@@ -1,9 +1,25 @@
 import h5py
 import numpy as np
-from ..utils.timer import Timer
 import gc
+from typing import List, Callable, Mapping
+from ...utils.timer import Timer
+from ...utils.partition import Partition
+from ...utils.datastores import GenericIOStore
+from .fieldsconfig import FieldsConfig
 
-def write2single(partition, steps, local_size, branch_sizes, branch_positions, data_by_step, fields_write, dtypes, output_file, logger):
+
+def write2single(
+        partition: Partition, 
+        steps: List[int], 
+        local_size: int, 
+        branch_sizes: Mapping[int, np.ndarray], 
+        branch_positions: Mapping[int, np.ndarray], 
+        data_by_step: GenericIOStore, 
+        fields_config: FieldsConfig, 
+        dtypes: Mapping[str, np.dtype], 
+        output_file: str, 
+        logger: Callable
+        ):
     with Timer("output HDF5 forest: commiunicate global offsets", logger=logger):
         # Local and global sizes
         local_sizes = partition.comm.allgather(local_size)
@@ -30,8 +46,8 @@ def write2single(partition, steps, local_size, branch_sizes, branch_positions, d
         if partition.rank == 0:
             with h5py.File(f"{output_file}.hdf5", 'w') as f:
                 g = f.create_group("forest")
-                for k in fields_write:
-                    g.create_dataset(k, (total_size,), dtype=dtypes[k])
+                for k_i, k_o in fields_config.output_fields:
+                    g.create_dataset(k_o, (total_size,), dtype=dtypes[k_i])
                 g.create_dataset('branch_size', (total_size,), dtype=np.int32)
                 g.create_dataset('snapnum', (total_size,), dtype=np.int16)
 
@@ -45,18 +61,18 @@ def write2single(partition, steps, local_size, branch_sizes, branch_positions, d
 
     with Timer("output HDF5 forest: fill data", logger=logger):
         # main fields
-        for k in fields_write:
+        for k_i, k_o in fields_config.output_fields:
             # prepare local data
-            local_data = np.empty(local_size, dtype=dtypes[k])
+            local_data = np.empty(local_size, dtype=dtypes[k_i])
             for step in steps:
                 branch_position = branch_positions[step]
-                data = data_by_step.get_field(step, k)
-                local_data[branch_position] = data[k]
+                data = data_by_step.get_field(step, k_i)
+                local_data[branch_position] = data[k_i]
             # For now: rank-by-rank (TODO: h5py MPI)
             for i in range(partition.nranks):
                 if partition.rank == i:
                     with h5py.File(f"{output_file}.hdf5", 'r+') as f:
-                        d = f['forest'][k]
+                        d = f['forest'][k_o]
                         d[local_offset:local_offset+local_size] = local_data
                 partition.comm.Barrier()
             del local_data
@@ -94,7 +110,7 @@ def write2single(partition, steps, local_size, branch_sizes, branch_positions, d
         # TODO: potentially add all snapshots
         step = steps[-1]
         index = branch_positions[step] + local_offset
-        mass = data_by_step.get_field(step, 'tree_node_mass')['tree_node_mass']
+        mass = data_by_step.get_field(step, fields_config.tree_node_mass)[fields_config.tree_node_mass]
 
         for i in range(partition.nranks):
             if partition.rank == i:
@@ -106,7 +122,18 @@ def write2single(partition, steps, local_size, branch_sizes, branch_positions, d
             partition.comm.Barrier()
 
 
-def write2multiple(partition, steps, local_size, branch_sizes, branch_positions, data_by_step, fields_write, dtypes, output_file, logger):
+def write2multiple(
+        partition: Partition, 
+        steps: List[int], 
+        local_size: int, 
+        branch_sizes: Mapping[int, np.ndarray], 
+        branch_positions: Mapping[int, np.ndarray], 
+        data_by_step: GenericIOStore, 
+        fields_config: FieldsConfig, 
+        dtypes: Mapping[str, np.dtype], 
+        output_file: str, 
+        logger: Callable
+        ):
     rank = partition.rank
     output_file = f"{output_file}.{rank:03d}"
 
@@ -119,8 +146,8 @@ def write2multiple(partition, steps, local_size, branch_sizes, branch_positions,
     with Timer("output HDF5 forest: create files and pre-allocate", logger=logger):
         with h5py.File(f"{output_file}.hdf5", 'w') as f:
             g = f.create_group("forest")
-            for k in fields_write:
-                g.create_dataset(k, (local_size,), dtype=dtypes[k])
+            for k_i, k_o in fields_config.output_fields:
+                g.create_dataset(k_o, (local_size,), dtype=dtypes[k_i])
             g.create_dataset('branch_size', (local_size,), dtype=np.int32)
             g.create_dataset('snapnum', (local_size,), dtype=np.int16)
 
@@ -134,15 +161,15 @@ def write2multiple(partition, steps, local_size, branch_sizes, branch_positions,
 
     with Timer("output HDF5 forest: fill data", logger=logger):
         # main fields
-        for k in fields_write:
+        for k_i, k_o in fields_config.output_fields:
             # prepare local data
-            local_data = np.empty(local_size, dtype=dtypes[k])
+            local_data = np.empty(local_size, dtype=dtypes[k_i])
             for step in steps:
                 branch_position = branch_positions[step]
-                data = data_by_step.get_field(step, k)
-                local_data[branch_position] = data[k]
+                data = data_by_step.get_field(step, k_i)
+                local_data[branch_position] = data[k_i]
             with h5py.File(f"{output_file}.hdf5", 'r+') as f:
-                d = f['forest'][k]
+                d = f['forest'][k_o]
                 d[:] = local_data
             del local_data
             gc.collect()
@@ -171,7 +198,7 @@ def write2multiple(partition, steps, local_size, branch_sizes, branch_positions,
         # TODO: potentially add all snapshots
         step = steps[-1]
         index = branch_positions[step]
-        mass = data_by_step.get_field(step, 'tree_node_mass')['tree_node_mass']
+        mass = data_by_step.get_field(step, fields_config.tree_node_mass)[fields_config.tree_node_mass]
 
         with h5py.File(f"{output_file}.hdf5", 'r+') as f:
             d = f[f'index_{step}']['index']
