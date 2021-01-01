@@ -4,7 +4,7 @@ Getting Started
 .. currentmodule:: haccytrees.mergertrees
 
 
-
+.. _sec-reading-a-forest:
 
 Reading a Merger Forest
 -----------------------

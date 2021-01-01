@@ -1,3 +1,5 @@
+.. _temporary-storage:
+
 Temporary Storage
 =================
 

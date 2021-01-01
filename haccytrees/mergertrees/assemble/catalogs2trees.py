@@ -205,9 +205,7 @@ def catalog2tree(simulation: Simulation,
 
     treenode_base
 
-    fields_copy
-
-    fields_derived
+    fields_config
 
     output_file
 

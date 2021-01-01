@@ -7,6 +7,8 @@ HACCYTREES
    :alt: merger tree illustration
    :width: 100%
 
+.. _install-haccytrees:
+
 Installation
 ------------
 
