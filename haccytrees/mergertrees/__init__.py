@@ -1,1 +1,1 @@
-from .forest_reader import read_forest, get_mainbranch_indices, split_fragment_tag
+from .forest_reader import read_forest, get_mainbranch_indices, split_fragment_tag, get_largest_merger_indices

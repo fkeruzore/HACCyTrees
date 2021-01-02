@@ -4,10 +4,10 @@ import drawSvg
 import matplotlib
 from typing import Mapping, Union
 
-class _Halo(namedtuple("_Halo", ['id', 'mass', 'freemassacc', 'scale_fac', 'snap_num', 'depth', 'progenitors'])):
+class _Halo(namedtuple("_Halo", ['id', 'mass', 'freemassacc', 'scale_fac', 'snapnum', 'depth', 'progenitors'])):
     __slots__ = ()
     def __str__(self):
-        return f"Halo(id={self.id}, mass={self.mass:.2e}, snap_num={self.snap_num}, depth={self.depth}, nprog={len(self.progenitors)})"
+        return f"Halo(id={self.id}, mass={self.mass:.2e}, snapnum={self.snapnum}, depth={self.depth}, nprog={len(self.progenitors)})"
     def __repr__(self):
         return self.__str__()
 
@@ -15,8 +15,8 @@ class _Halo(namedtuple("_Halo", ['id', 'mass', 'freemassacc', 'scale_fac', 'snap
 def _extract_tree(trees, progenitor_array, target_idx, mass_threshold=1e11, max_steps=100):
     hdict = {}
     snaplists = [[] for d in range(max_steps+1)]
-    hroot = _Halo(target_idx, trees['mass'][target_idx], trees['mass'][target_idx], trees['scale_factor'][target_idx], trees['snap_num'][target_idx], 0, [])
-    last_step = trees['snap_num'][target_idx]
+    hroot = _Halo(target_idx, trees['tree_node_mass'][target_idx], trees['tree_node_mass'][target_idx], trees['scale_factor'][target_idx], trees['snapnum'][target_idx], 0, [])
+    last_step = trees['snapnum'][target_idx]
     hdict[target_idx] = hroot
     queue = [hroot]
     snaplists[0].append(hroot)
@@ -25,7 +25,7 @@ def _extract_tree(trees, progenitor_array, target_idx, mass_threshold=1e11, max_
         prog_start = trees['progenitor_offset'][h.id]
         prog_end = prog_start + trees['progenitor_count'][h.id]
         progenitors = progenitor_array[prog_start:prog_end]
-        masses = np.array([trees['mass'][i] for i in progenitors])
+        masses = np.array([trees['tree_node_mass'][i] for i in progenitors])
         s = np.argsort(masses)[::-1]
         masses = masses[s]
         progenitors = progenitors[s]
@@ -34,8 +34,8 @@ def _extract_tree(trees, progenitor_array, target_idx, mass_threshold=1e11, max_
         for m, pidx in zip(masses, progenitors):
             if m < mass_threshold:
                 continue
-            depth = last_step - trees['snap_num'][pidx]
-            p = _Halo(pidx, m, m, trees['scale_factor'][pidx], trees['snap_num'][pidx], depth, [])
+            depth = last_step - trees['snapnum'][pidx]
+            p = _Halo(pidx, m, m, trees['scale_factor'][pidx], trees['snapnum'][pidx], depth, [])
             hdict[pidx] = p
             h.progenitors.append(p)
             h._replace(freemassacc=h.freemassacc - p.mass)
@@ -225,7 +225,7 @@ def merger_tree_drawing(
 
     # Determine xpos, height and width
     hnorm = max_steps * (1+nodewidth/100/max_steps)
-    hx = np.array([hroot.snap_num - h.snap_num for h in hlist])/hnorm*aspect
+    hx = np.array([hroot.snapnum - h.snapnum for h in hlist])/hnorm*aspect
     
     
     hh = np.array([nodewidth/100/max_steps for h in hlist])

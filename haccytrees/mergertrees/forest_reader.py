@@ -1,9 +1,12 @@
 import numpy as np
 import numba
 import h5py
-from typing import Tuple, Mapping, Union, Optional
+from typing import Tuple, Mapping, Union, Optional, List
 
 from ..simulations import Simulation
+
+# These fields will always be loaded from the HDF5 files
+_essential_fields = ['tree_node_index', 'desc_node_index', 'snapnum', 'branch_size']
 
 @numba.jit(nopython=True)
 def _create_desc_index(snapnum):
@@ -70,34 +73,12 @@ def _create_indices(snapnum):
     return desc_index, progenitor_array, progenitor_count, progenitor_offsets
 
 
-# new name: old name
-column_rename = {
-    'branch_size'     : 'branch_size', 
-    'desc_node_index' : 'desc_node_index', 
-    'fof_halo_count'  : 'fof_halo_count', 
-    'mass_fof'        : 'fof_halo_mass', 
-    'fof_halo_tag'    : 'fof_halo_tag', 
-    'snap_num'        : 'snapnum', 
-    'cdelta_sod'      : 'sod_halo_cdelta', 
-    'cdelta_sod_error': 'sod_halo_cdelta_error', 
-    'cdelta_sod_accum': 'sod_halo_c_acc_mass',
-    'cdelta_sod_peak' : 'sod_halo_c_peak_mass',
-    'sod_halo_count'  : 'sod_halo_count', 
-    'mass_sod'        : 'sod_halo_mass', 
-    'radius_sod'      : 'sod_halo_radius', 
-    'tree_node_index' : 'tree_node_index', 
-    'mass'            : 'tree_node_mass', 
-    'xoff_com'        : 'xoff_com', 
-    'xoff_fof'        : 'xoff_fof', 
-    'xoff_sod'        : 'xoff_sod'
-}
-
-
 def read_forest(filename: str, 
                 simulation: Union[str, Simulation],
                  *,
                 nchunks: int=None, 
                 chunknum: int=None, 
+                include_fields: List[str]=None,
                 create_indices: bool=True, 
                 add_scale_factor: bool=True
     ) -> Tuple[Mapping[str, np.ndarray], Optional[np.ndarray]]:
@@ -120,6 +101,11 @@ def read_forest(filename: str,
         if ``nchunks`` is set, ``chunknum`` determines which chunk number will
         be read. First chunk has ``chunknum=0``, has to be smaller than 
         ``nchunks``.
+
+    include_fields
+        the columns that will be read from the HDF5 file. If ``None``, all data
+        will be read. Note: some essential columns will always be read, check
+        ``haccytrees.mergertrees.forest_reader._essential_fields``.
 
     create_indices
         if ``True``, will add descendant_idx``, ``progenitor_count``, 
@@ -163,17 +149,23 @@ def read_forest(filename: str,
         
     with h5py.File(filename, 'r') as f:
         forest = f['forest']
+        if include_fields is None:
+            include_fields = list(forest.keys())
+        else:
+            for k in _essential_fields:
+                if not k in include_fields:
+                    include_fields.append(k)
         data = {}
-        for k_new, k_old in column_rename.items():
-            data[k_new] = np.array(forest[k_old][start:end])
+        for k in include_fields:
+            data[k] = np.array(forest[k][start:end])
 
     if add_scale_factor:
         steps = np.array(simulation.cosmotools_steps)
-        timestep = steps[data['snap_num']]
+        timestep = steps[data['snapnum']]
         data['scale_factor'] = simulation.step2a(timestep)
     
     if create_indices:
-        desc_index, progenitor_array, progenitor_count, progenitor_offsets = _create_indices(data['snap_num'])
+        desc_index, progenitor_array, progenitor_count, progenitor_offsets = _create_indices(data['snapnum'])
         data['descendant_idx'] = desc_index
         data['progenitor_count'] = progenitor_count
         data['progenitor_offset'] = progenitor_offsets
@@ -184,16 +176,16 @@ def read_forest(filename: str,
 
 
 @numba.jit(nopython=True, parallel=True)
-def _get_mainbranch(snap_num, target_indices, mainbranch_matrix):
+def _get_mainbranch(snapnum, target_indices, mainbranch_matrix):
     ntargets = len(target_indices)
-    nhalos = len(snap_num)
+    nhalos = len(snapnum)
     for i in numba.prange(ntargets):
         idx = target_indices[i]
-        sn = snap_num[idx]
+        sn = snapnum[idx]
         mainbranch_matrix[i, sn] = idx
-        while(idx+1 < nhalos and snap_num[idx+1] < sn):
+        while(idx+1 < nhalos and snapnum[idx+1] < sn):
             idx += 1
-            sn = snap_num[idx]
+            sn = snapnum[idx]
             mainbranch_matrix[i, sn] = idx
 
 
@@ -201,7 +193,7 @@ def get_mainbranch_indices(forest: Mapping[str, np.ndarray],
                            simulation: Union[str, Simulation], 
                            target_index: np.ndarray
     ) -> np.ndarray:
-    """Extract main progenitor branches in a matrix format: (n_targets x n_steps)
+    """Extract main progenitor branches in a matrix format: ``(n_targets x n_steps)``
 
     Parameters
     ----------
@@ -239,121 +231,88 @@ def get_mainbranch_indices(forest: Mapping[str, np.ndarray],
     mainbranch_indices[:] = -1
 
     # fill index array
-    _get_mainbranch(forest['snap_num'], target_index, mainbranch_indices)
+    _get_mainbranch(forest['snapnum'], target_index, mainbranch_indices)
     return mainbranch_indices
 
 
 @numba.jit(nopython=True, parallel=True)
-def _get_largest_merger_indices(snap_num, branch_sizes, target_indices, merger_indices):
+def _get_largest_merger_indices(progenitor_array, progenitor_offsets, progenitor_size, target_indices, merger_indices):
     ntargets = len(target_indices)
-    nhalos = len(snap_num)
     for i in numba.prange(ntargets):
         idx = target_indices[i]
-        sn = snap_num[idx]
-        while(idx+1 < nhalos and snap_num[idx+1] < sn):
-            idx += 1
-            sn = snap_num[idx]
-
-            merger_idx = idx + branch_sizes[idx]
-            if snap_num[merger_idx] == sn:
-                # it is a merger
-                merger_indices[i, sn] = merger_idx
-            else:
-                # there is no merger
-                merger_indices[i, sn] = -2
+        nprogs = progenitor_size[idx]
+        if nprogs == 0:
+            merger_indices[i] = -2
+        elif nprogs == 1:
+            merger_indices[i] = -1
+        else:
+            merger_indices[i] = progenitor_array[progenitor_offsets[idx]+1]
 
 
 def get_largest_merger_indices(forest: dict, 
-                               simulation: Union[str, Simulation], 
+                               progenitor_array: np.ndarray,
                                target_index: np.ndarray
     ) -> np.ndarray:
-    """Extract indices of most massive merger at every timestep
+    """Extract indices of most massive merger for each target halo
+
+    The index array returned has the same length as target_index. Invalid
+    indices are masked with -1 (only one progenitor) and -2 (no progenitors)
 
     Parameters
     ----------
-    forest:
+    forest: 
         the full treenode forest returned by :func:`read_forest`
-    
-    simulation:
-        either a valid simulation string or an instance of :class:`Simulation`,
-        required to get the number of cosmotools steps.
 
-    target_index:
+    progenitor_array: 
+        the full progenitor array created by :func:`read_forest`
+
+    target_index: 
         the indices of the halos for which the merger indices should be 
         extracted.
 
     Returns
     -------
-    merger_indices: np.ndarray
-        the indices of the halos that are. Each column `j`
-        corresponds to the main branch of the `j`-th target_halo. Each row
-        corresponds to a cosmotools step (with 0 being the first step). At times
-        where the halo did not exist, the index is `-1`. If there is no merger
-        at that time (i.e. only one progenitor), the index is `-2`
+    merger_indices: np.ndarray the indices of the second most massive
+        progenitors (determined by the tree-node mass
     """
-    if isinstance(simulation, str):
-        simulation = Simulation.simulations[simulation]
     if not isinstance(target_index, np.ndarray):
         if hasattr(target_index, "__len__"):
             target_index = np.array(target_index)
         else:
             target_index = np.array([target_index])
     nhalos = len(target_index)
-    nsteps = len(simulation.cosmotools_steps)
 
     # allocate an index array
-    merger_indices = np.empty((nhalos, nsteps), dtype=np.int64)
-    merger_indices[:] = -1
+    merger_indices = np.empty(nhalos, dtype=np.int64)
 
     # fill index array
-    _get_largest_merger_indices(forest['snap_num'], forest['branch_size'], target_index, merger_indices)
-    return merger_indices
-
-
-def get_merger_ratio(forest: dict, 
-                     simulation: Union[str, Simulation], 
-                     target_index: np.ndarray
-    ) -> np.ndarray:
-    """Extract merger ratios
-
-    Parameters
-    ----------
-    forest:
-        the full treenode forest returned by :func:`read_forest`
-    
-    simulation:
-        either a valid simulation string or an instance of :class:`Simulation`,
-        required to get the number of cosmotools steps.
-
-    target_index:
-        the indices of the halos along whose main progenitor branch the merger
-        ratio should be calculated
-
-    Returns
-    -------
-    merger_ratios: np.ndarray
-    """
-    if isinstance(simulation, str):
-        simulation = Simulation.simulations[simulation]
-    if not isinstance(target_index, np.ndarray):
-        if hasattr(target_index, "__len__"):
-            target_index = np.array(target_index)
-        else:
-            target_index = np.array([target_index])
-    nhalos = len(target_index)
-    nsteps = len(simulation.cosmotools_steps)
-
-    # allocate an index array
-    merger_indices = np.empty((nhalos, nsteps), dtype=np.int64)
-    merger_indices[:] = -1
-
-    # fill index array
-    _get_largest_merger_indices(forest['snap_num'], forest['branch_size'], target_index, merger_indices)
+    _get_largest_merger_indices(progenitor_array, forest['progenitor_offsets'], forest['progenitor_sizes'], 
+                                target_index, merger_indices)
     return merger_indices
 
 
 def split_fragment_tag(tag: int) -> Tuple[int, int]:
+    """Extracting the original fof_tag and fragment index from fragments
+
+    Parameters
+    ----------
+    tag
+        the fof_tag of the fragment, has to be negative by definition
+
+    Returns
+    -------
+    fof_tag
+        the original fof_tag of the FoF halo the fragment is associated with
+    
+    fragment_idx
+        the index / enumeration of the fragment (0 == main fragment)
+
+    Notes
+    -----
+    This function can also be used with numpy arrays directly
+
+    """
     tag = -tag  #reverting the - operation first
-    idx = tag >> 48
-    old_tag = tag & ((1<<48) - 1)
-    return old_tag, idx
+    fragment_idx = tag >> 48
+    fof_tag = tag & ((1<<48) - 1)
+    return fof_tag, fragment_idx
