@@ -9,7 +9,7 @@ from ..simulations import Simulation
 _essential_fields = ['tree_node_index', 'desc_node_index', 'snapnum', 'branch_size']
 
 @numba.jit(nopython=True)
-def _create_desc_index(snapnum):
+def _create_desc_index(snapnum, desc_node_index):
     N = len(snapnum)
     
     # Allocate desc_index
@@ -19,14 +19,20 @@ def _create_desc_index(snapnum):
     # Keep track of roots at each snap
     snapmax = np.max(snapnum)
     snap_roots = np.empty(int(snapmax+3), dtype=np.int64)
-    snap_roots[:] = -1
     
     prev_sn = snapmax
     for i in range(N):
         sn = snapnum[i] + 1
-        # cleanup previous step
-        for j in range(sn, prev_sn):
-            snap_roots[j] = -1
+        # check if it's a new root
+        if desc_node_index[i] < 0:
+            # this is only necessary because we may have roots at z>0 (halos
+            # that disappear)
+            snap_roots[:] = -1
+        else:
+            # cleanup previous step
+            for j in range(sn, prev_sn):
+                snap_roots[j] = -1
+
         desc_index[i] = snap_roots[sn+1]
         snap_roots[sn] = i
         prev_sn = sn
@@ -67,8 +73,8 @@ def _create_progenitor_idx(desc_index):
         
     return progenitor_array, progenitor_count, progenitor_offsets
 
-def _create_indices(snapnum):
-    desc_index = _create_desc_index(snapnum)
+def _create_indices(snapnum, desc_node_index):
+    desc_index = _create_desc_index(snapnum, desc_node_index)
     progenitor_array, progenitor_count, progenitor_offsets = _create_progenitor_idx(desc_index)
     return desc_index, progenitor_array, progenitor_count, progenitor_offsets
 
@@ -165,11 +171,12 @@ def read_forest(filename: str,
         data['scale_factor'] = simulation.step2a(timestep)
     
     if create_indices:
-        desc_index, progenitor_array, progenitor_count, progenitor_offsets = _create_indices(data['snapnum'])
-        data['descendant_idx'] = desc_index
-        data['progenitor_count'] = progenitor_count
-        data['progenitor_offset'] = progenitor_offsets
-        data['halo_index'] = np.arange(len(desc_index))
+        indices = _create_indices(data['snapnum'], data['desc_node_index'])
+        progenitor_array = indices[1]
+        data['descendant_idx'] = indices[0]
+        data['progenitor_count'] = indices[2]
+        data['progenitor_offset'] = indices[3]
+        data['halo_index'] = np.arange(len(indices[0]))
         return data, progenitor_array
     else:
         return data, None
