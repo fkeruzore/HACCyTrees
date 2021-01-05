@@ -7,7 +7,7 @@ TreeDataT = Mapping[str, np.ndarray]
 
 def distribute(partition: Partition, 
                data: TreeDataT, 
-               xyz_keys: Tuple[str, str, str]=('x','y','z'), 
+               xyz_keys: Tuple[str, str, str], 
                *,
                verbose: Union[bool, int]=False, 
                verify_count: bool=True) -> TreeDataT:
@@ -131,7 +131,7 @@ def distribute(partition: Partition,
 def overload(partition: Partition, 
              data: TreeDataT, 
              overload_length: float, 
-             xyz_keys: Tuple[str, str, str]=('x','y','z'), 
+             xyz_keys: Tuple[str, str, str], 
              *,
              verbose: Union[bool, int]=False, ):
     """Copy data within an overload length to the 26 neighboring ranks

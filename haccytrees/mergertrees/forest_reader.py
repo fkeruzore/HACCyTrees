@@ -10,6 +10,26 @@ _essential_fields = ['tree_node_index', 'desc_node_index', 'snapnum', 'branch_si
 
 @numba.jit(nopython=True)
 def _create_desc_index(snapnum, desc_node_index):
+    """Creating an array index for each halo, given by the data order
+
+    Parameters
+    ----------
+    snapnum
+        the full "snapnum" data array of the merger forest
+    
+    desc_node_index
+        the desc_node_index array of the merger forests, required since we have
+        some trees that are not rooted at z=0 (final snapshot), and therefore
+        we need to know when we start a new tree (desc_node_index==-1)
+
+    Notes
+    -----
+    The function keeps track of the current tree hierachy by the snap_roots
+    array, where each entry has the array index of the last halo at that
+    snapshot as we traverse a tree. The descendant index of a halo at index i is 
+    then the value of ``snap_roots[snapnum[i] + 1]``
+
+    """
     N = len(snapnum)
     
     # Allocate desc_index

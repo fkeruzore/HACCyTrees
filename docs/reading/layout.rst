@@ -17,11 +17,76 @@ sub-tree (e.g. starting from a progenitor at redshift 1) is contiguous in the
 data arrays. To facilitate extracting a sub-tree, there is a forest array
 ``branch_size``, which stores the size of each halo's subtree.
 
-[TODO: add illustration]
+The following figure illustrates a small forest with two trees, spanning 10 
+snapshots:
+
+.. figure:: mergertree_layout_sketch.svg
+   :width: 400px
+   :align: center
+
+   Memory layout of a tree. Numbers show the array position, arrows incidate 
+   mergers. Each row is the main progenitor branch of the first halo in that 
+   row, columns are snapshots, starting with the latest snapshot (z=0) on the 
+   left.
+
+The trees start with the root halo at the latest snapshot, followed by its main
+progenitor branch. Then, the array continues with the earliest merger into this
+branch and its progenitors, and so on. In the following table, we list the
+branch size of each of the halos. Note that ``branch_size`` refers to the size
+of the subtree starting at this halo.
+
+
+===== =======  ===========
+index snapnum  branch_size
+===== =======  ===========
+0     9        46
+1     8        33
+2     7        32
+3     6        16
+4     5        15
+5     4        8
+6     3        7
+7     2        3
+8     1        2
+9     0        1
+10    2        3
+11    1        2
+12    0        1
+13    4        6
+14    3        3
+15    2        2
+16    1        1
+17    3        2
+18    2        1
+...   ...      ...
+46    9        13
+47    8        12
+...   ...      ...
+===== =======  ===========
+
+The ``snapnum`` column and the ordering of our data are sufficient to
+reconstruct the tree structure. During read-in of the forests, the code
+constructs additional arrays that help navigating the tree, without having to be
+aware of the data layout:
+
+-  ``desc_index``: the array index to the descendant halo
+-  ``progenitor_array``, ``progenitor_offset``, ``progenitor_size``: These arrays 
+   help finding the indices of all progenitors associated with a halo, ordered 
+   by ``tree_node_mass``:
+
+   .. code-block:: python
+
+      start = forest['progenitor_offset'][i]
+      end = start + forest['progenitor_size'][i]
+      progenitor_indices = progenitor_array[start:end]
+
 
 
 Available Columns
 -----------------
+
+Here is a list of all data-columns in the HDF5 files as well as the arrays that
+are automatically constructed by haccytrees during the reading of those files:
 
 .. table:: Columns stored in the HDF5 file
    :widths: 30 60 10
@@ -40,7 +105,7 @@ Available Columns
    |                       | (:ref:`reading/fragments:Dealing with Fragments`),    |                            |
    |                       | the tag is negative                                   |                            |
    +-----------------------+-------------------------------------------------------+----------------------------+
-   | snap_num              | the enumerated output, starting at 0 for the first    |                            |
+   | snapnum               | the enumerated output, starting at 0 for the first    |                            |
    |                       | snapshot                                              |                            |
    +-----------------------+-------------------------------------------------------+----------------------------+
    | tree_node_mass        | the FoF mass of the halo, corrected for fragments     | :math:`h^{-1}M_\odot`      |
