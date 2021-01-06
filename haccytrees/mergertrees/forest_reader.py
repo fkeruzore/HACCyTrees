@@ -316,30 +316,3 @@ def get_largest_merger_indices(forest: dict,
     _get_largest_merger_indices(progenitor_array, forest['progenitor_offsets'], forest['progenitor_sizes'], 
                                 target_index, merger_indices)
     return merger_indices
-
-
-def split_fragment_tag(tag: int) -> Tuple[int, int]:
-    """Extracting the original fof_tag and fragment index from fragments
-
-    Parameters
-    ----------
-    tag
-        the fof_tag of the fragment, has to be negative by definition
-
-    Returns
-    -------
-    fof_tag
-        the original fof_tag of the FoF halo the fragment is associated with
-    
-    fragment_idx
-        the index / enumeration of the fragment (0 == main fragment)
-
-    Notes
-    -----
-    This function can also be used with numpy arrays directly
-
-    """
-    tag = -tag  #reverting the - operation first
-    fragment_idx = tag >> 48
-    fof_tag = tag & ((1<<48) - 1)
-    return fof_tag, fragment_idx
