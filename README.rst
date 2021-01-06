@@ -5,7 +5,7 @@ Welcome to haccytrees! This is a python library to create, read, and process
 large merger-tree forests created from HACC simulations, such as Last Journey.
 
 Documentation and usage examples are provided at
-`<https://www.hep.anl.gov/mbuehlmann/haccytrees/>`_. The code is available at 
+`<https://www.hep.anl.gov/mbuehlmann/haccytrees>`_. The code is available at 
 `<https://xgitlab.cels.anl.gov/mbuehlmann/haccytrees>`_.
 
 

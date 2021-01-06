@@ -92,7 +92,56 @@ def fix_fragment_properties(
     interpolation: str = 'constant_reverse',
     mask_negative: bool = False
     ) -> None:
-    """
+    """Correct properties of minor fragments
+
+    The SOD data stored in the merger tree forest files will be wrong for
+    fragmented FoF groups, if the halo is not the major fragment of this group.
+    This function attempts to fix those values by either linearly interpolate
+    or setting the SOD properties to a constant value during the times when
+    a halo is a minor fragment.
+
+    Parameters
+    ----------
+    forest
+        the full merger tree forest data
+
+    keys
+        list of the columns to which the correction should be applied
+
+    inplace
+        if True, the column will be updated in-place, otherwise, a new array
+        will be created with the original name and suffix appended
+
+    suffix
+        if not in-place, the new array will be named ``old_column + suffix``
+
+    interpolation
+        the type of correction to apply. Currently supported are: 
+
+        - ``"constant_reverse"``: set the properties to the value the halo has
+          when becoming a non-minor-fragment or independent ("reverse" in time)
+        - ``"linear"``: linearly interpolate (in snapshot-space) the property
+          values from before and after being a minor fragment
+
+    mask_negative
+        if True, will not attempt to do a linear interpolation if either the 
+        starting or ending value is negative, e.g. for an invalid concentration
+        parameter. Instead, the property will be set to the negative value
+        during the minor-fragment phase.
+
+    Examples
+    --------
+    >>> haccytrees.mergertrees.fix_fragment_properties(forest, 
+    ...     ['sod_halo_mass', 'sod_halo_radius', 'sod_halo_cdelta'],
+    ...     inplace=False, 
+    ...     suffix='_fragfix_const', 
+    ...     interpolation='constant_reverse')
+    >>> haccytrees.mergertrees.fix_fragment_properties(forest, 
+    ...     ['sod_halo_mass', 'sod_halo_radius', 'sod_halo_cdelta'],
+    ...     inplace=False, 
+    ...     suffix='_fragfix_lin', 
+    ...     interpolation='linear',
+    ...     mask_negative=True)
 
     """
     for k in keys:
