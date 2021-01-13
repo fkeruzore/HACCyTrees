@@ -140,7 +140,7 @@ def _catalog2tree_step(
     with Timer(name="read treenodes", logger=logger):
         data = _read_data(partition=partition, 
                           simulation=simulation, 
-                          filename=f"{treenode_base}-{step}.treenodes", 
+                          filename=f"{treenode_base}{step}.treenodes", 
                           logger=logger, 
                           fields_config=fields_config, 
                           rebalance=rebalance_gio_read, 
@@ -202,29 +202,48 @@ def catalog2tree(simulation: Simulation,
     Parameters
     ----------
     simulation
+        a :class:`Simulation` instance containing the cosmotools steps
 
     treenode_base
+        the base path for the treenode files. The path will be completed by
+        appending ``[step].treenodes``.
 
     fields_config
+        a :class:`FieldsConfig` instance, containing the treenodes filed names
 
     output_file
+        base path for the output file(s)
 
     temporary_path
+        base path for temporary files. Note: folders must exist.
 
     do_all2all_exchange
+        if ``False``, will exchange among neighboring ranks first and then
+        all2all. If ``True``, will do all2all directly
 
     split_output
+        if ``True``, forests will be stored in multiple HDF5 files (one per 
+        rank). If ``False``, all data will be combined in a single file (might
+        not be feasible for large simulations)
 
     fail_on_desc_not_found
+        if ``True``, will abort if a descendant halo cannot be found among all
+        ranks. If ``False``, the orphaned halo will become the root of the
+        subtree.
 
     rebalance_gio_read
+        if ``True``, will reassign the reading ranks for the treenode files. Can
+        be slower or faster.
 
     mpi_waittime
+        time in seconds for which the code will wait for the MPI to be 
+        initialized. Can help with some MPI errors (on cooley)
 
     logger
+        a logging function, e.g. ``print``
 
     verbose
-
+        verbosity level, either 0, 1, or 2
     """
     # Set a timer for the full run
     total_timer = Timer("total time", logger=None)
@@ -275,7 +294,7 @@ def catalog2tree(simulation: Simulation,
 
     # read final snapshot (tree roots)
     with Timer(name="read treenodes", logger=logger):
-        data = _read_data(partition, simulation, f"{treenode_base}-{steps[-1]}.treenodes", logger, fields_config, rebalance=rebalance_gio_read, verbose=verbose)
+        data = _read_data(partition, simulation, f"{treenode_base}{steps[-1]}.treenodes", logger, fields_config, rebalance=rebalance_gio_read, verbose=verbose)
 
     # sort by tree_node_index
     with Timer(name="sort arrays", logger=logger):
