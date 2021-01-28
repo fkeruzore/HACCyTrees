@@ -1,7 +1,10 @@
 import dataclasses
+import numpy as np
 from typing import List, ClassVar, Dict
 
 rhoc = 2.77536627e11
+km_in_Mpc = 3.08568e+19
+sec_in_year = 60*60*24*365.25
 @dataclasses.dataclass(frozen=True)
 class Cosmology:
     name: str
@@ -20,6 +23,21 @@ class Cosmology:
     def __repr__(self):
         return f"Cosmology({self.name})"
 
+    @property
+    def hubble_time(self):
+        """ Hubble time in Gyr (1/H0)
+        """
+        return 1/(100*self.h) * km_in_Mpc / sec_in_year * 1e-9
+
+    def lookback_time(self, a):
+        """ Lookback time in Gyr from a=1
+        """
+        # Integrate 1/(a'*H(a')) da' from a to 1
+        # TODO: add radiation / neutrinos
+        integrand = lambda a: (self.Omega_m/a + self.Omega_L*a**2 + (1-self.Omega_m-self.Omega_L))**(-0.5)
+        da = 1e-3
+        _a = np.linspace(a, 1, int(np.max((1-a)/da)))
+        return self.hubble_time * np.trapz(integrand(_a), _a, axis=0)
 
 @dataclasses.dataclass(frozen=True)
 class Simulation:
@@ -49,6 +67,10 @@ class Simulation:
 
     def step2z(self, step):
         return 1/self.step2a(step) - 1
+
+    def step2lookback(self, step):
+        a = self.step2a(step)
+        return self.cosmo.lookback_time(a)
 
     @property
     def particle_mass(self):
