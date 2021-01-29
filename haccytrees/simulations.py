@@ -29,6 +29,11 @@ class Cosmology:
         """
         return 1/(100*self.h) * km_in_Mpc / sec_in_year * 1e-9
 
+    def hubble_parameter(self, a):
+        """ redshift dependend Hubble parameter, H(a)
+        """
+        return 100*self.h * np.sqrt(self.Omega_m*a**-3 + self.Omega_L + (1-self.Omega_m - self.Omega_L)*a**-2)
+
     def lookback_time(self, a):
         """ Lookback time in Gyr from a=1
         """
@@ -38,6 +43,13 @@ class Cosmology:
         da = 1e-3
         _a = np.linspace(a, 1, int(np.max((1-a)/da)))
         return self.hubble_time * np.trapz(integrand(_a), _a, axis=0)
+
+    def virial_overdensity(self, a):
+        """Bryan & Norman Delta_vir
+        """
+        x = self.Omega_m - 1
+        return 18*np.pi**2 + 82*x - 39*x**2
+
 
 @dataclasses.dataclass(frozen=True)
 class Simulation:

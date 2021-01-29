@@ -19,6 +19,7 @@
       reading/layout
       reading/getting_started
       reading/fragments
+      reading/subhalo_model
       reading/visualization
       reading/simulations
       reading/examples
