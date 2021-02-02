@@ -1,5 +1,5 @@
 Subhalo Mass Model
-------------------
+==================
 
 .. currentmodule:: haccytrees.mergertrees
 
@@ -12,7 +12,7 @@ depends on the mass of the subhalo and the host halo at infall:
 
    m(t_\mathrm{infall} + \Delta t) = 
    \begin{cases}
-        m(t_\mathrm{infall}) \; \exp -\Delta t \, \tau^{-1} & \zeta = 0 \\
+        m(t_\mathrm{infall}) \; \exp -\frac{\Delta t}{\tau} & \zeta = 0 \\
         m(t_\mathrm{infall}) \left[ 
             1 + \zeta \left( 
             \frac{m(t_\mathrm{infall})}{M_\mathrm{host}(t_\mathrm{infall})} 
@@ -24,6 +24,10 @@ where :math:`\tau` is the characteristic timescale of the subhalo mass loss (see
 paper) and :math:`\zeta` and :math:`A` are free model parameters. In
 [Sultan2020]_, :math:`\zeta=0.1` and :math:`A=1.1` have been found providing a
 good fit over a large range of halo masses and redshifts.
+
+
+Creating subhalo data
+---------------------
 
 The function :func:`create_submass_data` applies this mass-model to a merger
 forest and allows querying the substructure masses of any halo in the forest. It
@@ -48,9 +52,15 @@ Setting ``compute_fsub_stats=True`` will add two columns to ``forest``,
    f_\mathrm{sub, tot} &= \frac{\sum_i M_\mathrm{sub}}{M_\mathrm{host}},
 
 where :math:`i` runs over all subhalos of the host above the mass threshold.
+
+
+Accessing subhalos
+------------------
+
 Individual subhalo masses can be accessed using the ``subdata_offset`` and
 ``subdata_size`` arrays in conjunction with the ``subhalo_data`` arrays. Let's
-find the subhalos of the most massive halo in our forest:
+find the subhalos of the most massive halo in our forest and plot their mass
+distribution relative to the host halo:
 
 .. code-block:: python
 
@@ -70,9 +80,18 @@ find the subhalos of the most massive halo in our forest:
    fig.tight_layout()
 
 .. figure:: subhalo_masses.svg
+   :align: center
    
    Mass distribution of the subhalos belonging to the most massive halo in our
    sample (``tree_node_index=2247296630669714101``, ``M = 1.28e15 # h-1 Msun``).
+
+Following subhalo evolutions
+----------------------------
+
+It is also possible to follow the (modeled) mass evolution of a merging halo as
+it merges and becomes a subhalo. The following example shows how one can do 
+this for a merger into the halo discussed above.
+
 
 
 References

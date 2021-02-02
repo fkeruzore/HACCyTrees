@@ -78,3 +78,5 @@ References
 .. autofunction:: read_forest
 
 .. autofunction:: get_mainbranch_indices
+
+.. autofunction:: get_main_merger_indices

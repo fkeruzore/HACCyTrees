@@ -99,6 +99,28 @@ def _create_indices(snapnum, desc_node_index):
     return desc_index, progenitor_array, progenitor_count, progenitor_offsets
 
 
+@numba.jit(nopython=True)
+def _get_massthreshold_mask(snapnum, tree_node_mass, desc_node_index, mask, threshold_mass, snap0):
+    nhalos = len(snapnum)
+    snap_roots = np.empty(snap0+1, dtype=numba.bool_)
+    snap_roots[:] = True
+    lastsnap = snapnum[0]
+    for i in range(nhalos):
+        # print(i, snap_roots)
+        if desc_node_index[i] < 0:
+            # a completely new root
+            snap_roots[:] = True
+        
+        elif snapnum[i] >= lastsnap:
+            # we are at a new branch
+            for s in range(lastsnap, snapnum[i]):
+                snap_roots[s] = True
+        desc_valid = desc_node_index[i] < 0 or snap_roots[snapnum[i]+1]
+        mask[i] = tree_node_mass[i] > threshold_mass and desc_valid
+        snap_roots[snapnum[i]] = mask[i]
+        lastsnap = snapnum[i]
+
+
 def read_forest(filename: str, 
                 simulation: Union[str, Simulation],
                  *,
@@ -106,7 +128,9 @@ def read_forest(filename: str,
                 chunknum: int=None, 
                 include_fields: List[str]=None,
                 create_indices: bool=True, 
-                add_scale_factor: bool=True
+                add_scale_factor: bool=True,
+                mass_threshold: float=None,
+                include_non_z0_roots: bool=False
     ) -> Tuple[Mapping[str, np.ndarray], Optional[np.ndarray]]:
     """Read a HDF5 merger-forest
 
@@ -140,6 +164,14 @@ def read_forest(filename: str,
     add_scale_factor
         if ``True``, will add the scale factor column to the forest data
 
+    mass_threshold
+        if not ``None``, the reader will prune all halos below the specified
+        mass threshold (in Msun/h)
+
+    include_non_z0_roots
+        if True, will also include trees that are not rooted at z=0 (i.e. halos
+        that for some reason "disappear" during the evolution)
+
     Returns
     -------
     forest: Mapping[str, np.ndarray]
@@ -157,7 +189,12 @@ def read_forest(filename: str,
     with h5py.File(filename, 'r') as f:
         nhalos = len(f['forest']['tree_node_index'])
         roots = np.array(f['index_499']['index'])
-    nroots = len(roots)
+        nroots = len(roots)
+        if include_non_z0_roots:
+            file_end = nhalos
+        else:
+            file_end = roots[-1] + f['forest']['branch_size'][roots[-1]]
+    
     if nchunks is not None:
         chunksize = nroots // nchunks
         if chunknum is None:
@@ -167,7 +204,7 @@ def read_forest(filename: str,
             print(f"invalid chunknum: {chunknum} needs to be smaller than {nchunks}")
         start = roots[chunknum * chunksize]
         if chunknum == nchunks - 1:
-            end = nhalos
+            end = file_end
         else:
             end = roots[(chunknum+1) * chunksize]
     else:
@@ -184,6 +221,15 @@ def read_forest(filename: str,
         data = {}
         for k in include_fields:
             data[k] = np.array(forest[k][start:end])
+
+    if mass_threshold is not None:
+        mask = np.empty(len(data['snapnum']), dtype=np.bool)
+        # snapnum, tree_node_mass, desc_node_index, mask, threshold_mass, snap0
+        _get_massthreshold_mask(data['snapnum'], data['tree_node_mass'], data['desc_node_index'], 
+                                mask, mass_threshold, len(simulation.cosmotools_steps))
+        # Apply mask
+        for k in data.keys():
+            data[k] = data[k][mask]
 
     if add_scale_factor:
         steps = np.array(simulation.cosmotools_steps)
@@ -263,7 +309,7 @@ def get_mainbranch_indices(forest: Mapping[str, np.ndarray],
 
 
 @numba.jit(nopython=True, parallel=True)
-def _get_largest_merger_indices(progenitor_array, progenitor_offsets, progenitor_size, target_indices, merger_indices):
+def _get_main_merger_indices(progenitor_array, progenitor_offsets, progenitor_size, target_indices, merger_indices):
     ntargets = len(target_indices)
     for i in numba.prange(ntargets):
         idx = target_indices[i]
@@ -276,9 +322,9 @@ def _get_largest_merger_indices(progenitor_array, progenitor_offsets, progenitor
             merger_indices[i] = progenitor_array[progenitor_offsets[idx]+1]
 
 
-def get_largest_merger_indices(forest: dict, 
-                               progenitor_array: np.ndarray,
-                               target_index: np.ndarray
+def get_main_merger_indices(forest: Mapping[str, np.ndarray], 
+                            progenitor_array: np.ndarray,
+                            target_index: np.ndarray
     ) -> np.ndarray:
     """Extract indices of most massive merger for each target halo
 
@@ -299,8 +345,9 @@ def get_largest_merger_indices(forest: dict,
 
     Returns
     -------
-    merger_indices: np.ndarray the indices of the second most massive
-        progenitors (determined by the tree-node mass
+    merger_indices: np.ndarray 
+        the indices of the second most massive progenitors (determined by the 
+        tree-node mass)
     """
     if not isinstance(target_index, np.ndarray):
         if hasattr(target_index, "__len__"):
@@ -313,6 +360,6 @@ def get_largest_merger_indices(forest: dict,
     merger_indices = np.empty(nhalos, dtype=np.int64)
 
     # fill index array
-    _get_largest_merger_indices(progenitor_array, forest['progenitor_offsets'], forest['progenitor_sizes'], 
+    _get_main_merger_indices(progenitor_array, forest['progenitor_offsets'], forest['progenitor_sizes'], 
                                 target_index, merger_indices)
     return merger_indices
