@@ -3,6 +3,7 @@ import numba
 from typing import Mapping, List
 from ..simulations import Simulation, Cosmology
 
+# TODO: parallelize numba functions: act on each root individually
 
 @numba.jit(nopython=True)
 def _create_submass_hostidx(snapnum, desc_index, snap0, submass_hostidx, submass_infallidx, submass_snapnum):

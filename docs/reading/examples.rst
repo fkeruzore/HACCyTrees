@@ -13,6 +13,11 @@ Average Mass-Growth
 Major Merger Rate 
 -----------------
 
+.. literalinclude:: example_merger_rate.py
+   :language: python
+
+.. image:: mergerrate_example.svg
+
 
 Nucleation Rate 
 ---------------

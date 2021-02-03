@@ -70,14 +70,14 @@ constructs additional arrays that help navigating the tree, without having to be
 aware of the data layout:
 
 -  ``desc_index``: the array index to the descendant halo
--  ``progenitor_array``, ``progenitor_offset``, ``progenitor_size``: These arrays 
+-  ``progenitor_array``, ``progenitor_offset``, ``progenitor_count``: These arrays 
    help finding the indices of all progenitors associated with a halo, ordered 
    by ``tree_node_mass``:
 
    .. code-block:: python
 
       start = forest['progenitor_offset'][i]
-      end = start + forest['progenitor_size'][i]
+      end = start + forest['progenitor_count'][i]
       progenitor_indices = progenitor_array[start:end]
 
 

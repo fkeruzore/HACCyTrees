@@ -68,7 +68,54 @@ Finding Major Mergers
 ---------------------
 
 Another common task is finding mergers above a certain relative or absolute
-threshold.
+threshold. To get the merger ratio from the two most massive progenitors of a
+list of target halos, the function :func:`get_nth_progenitor_indices` can be
+used as follows:
+
+.. code-block:: python
+
+   # get indices to main progenitors
+   main_progenitor_index = haccytrees.mergertrees.get_nth_progenitor_indices(
+       forest, progenitor_array, target_index=mainbranch_index[active_mask], n=1
+   )
+
+   # get indices to secondary progenitors (main mergers)
+   main_merger_index = haccytrees.mergertrees.get_nth_progenitor_indices(
+       forest, progenitor_array, target_index=mainbranch_index[active_mask], n=2
+   )
+
+   # the index will be negative if there's no merger, mask those out
+   merger_mask = main_merger_index >= 0
+
+   # allocate a merger_ratio array, 0 by default
+   merger_ratio = np.zeros_like(main_progenitor_index, dtype=np.float32)
+
+   # fill the elements for which a merger occurred with the mass ratio
+   merger_ratio[merger_mask] = forest['tree_node_mass'][main_merger_index[merger_mask]] / 
+                               forest['tree_node_mass'][main_progenitor_index[merger_mask]]
+   
+Major mergers can then be identified by finding the entries in ``merger_ratio``
+above the major merger threshold. 
+
+If an absolute major merger criteria is required, we only have to extract the
+mass of the main merger (secondary progenitor), i.e.
+
+.. code-block:: python
+
+   # get indices to secondary progenitors (main mergers)
+   main_merger_index = haccytrees.mergertrees.get_nth_progenitor_indices(
+       forest, progenitor_array, target_index=mainbranch_index[active_mask], n=2
+   )
+
+   # the index will be negative if there's no merger, mask those out
+   merger_mask = main_merger_index >= 0
+
+   # allocate a merger_ratio array, 0 by default
+   merger_mass = np.zeros_like(main_progenitor_index, dtype=np.float32)
+
+   # fill the elements for which a merger occurred with the mass ratio
+   merger_mass[merger_mask] = forest['tree_node_mass'][main_merger_index[merger_mask]] 
+
 
 --------------------------------------------------------------------------------
 
@@ -79,4 +126,4 @@ References
 
 .. autofunction:: get_mainbranch_indices
 
-.. autofunction:: get_main_merger_indices
+.. autofunction:: get_nth_progenitor_indices

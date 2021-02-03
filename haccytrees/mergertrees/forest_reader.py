@@ -309,27 +309,26 @@ def get_mainbranch_indices(forest: Mapping[str, np.ndarray],
 
 
 @numba.jit(nopython=True, parallel=True)
-def _get_main_merger_indices(progenitor_array, progenitor_offsets, progenitor_size, target_indices, merger_indices):
+def _get_nth_progenitor_indices(progenitor_array, progenitor_offsets, progenitor_count, target_indices, progenitor_indices, n):
     ntargets = len(target_indices)
     for i in numba.prange(ntargets):
         idx = target_indices[i]
-        nprogs = progenitor_size[idx]
-        if nprogs == 0:
-            merger_indices[i] = -2
-        elif nprogs == 1:
-            merger_indices[i] = -1
+        nprogs = progenitor_count[idx]
+        if nprogs < n:
+            progenitor_indices[i] = -1
         else:
-            merger_indices[i] = progenitor_array[progenitor_offsets[idx]+1]
+            progenitor_indices[i] = progenitor_array[progenitor_offsets[idx]+n-1]
 
 
-def get_main_merger_indices(forest: Mapping[str, np.ndarray], 
-                            progenitor_array: np.ndarray,
-                            target_index: np.ndarray
+def get_nth_progenitor_indices(forest: Mapping[str, np.ndarray], 
+                               progenitor_array: np.ndarray,
+                               target_index: np.ndarray,
+                               n: int
     ) -> np.ndarray:
-    """Extract indices of most massive merger for each target halo
+    """Extract indices of the n-th most massive progenitor for each target halo
 
     The index array returned has the same length as target_index. Invalid
-    indices are masked with -1 (only one progenitor) and -2 (no progenitors)
+    indices are masked with -1 (i.e. if the halo does not have n progenitors)
 
     Parameters
     ----------
@@ -343,12 +342,19 @@ def get_main_merger_indices(forest: Mapping[str, np.ndarray],
         the indices of the halos for which the merger indices should be 
         extracted.
 
+    n:
+        the n-th progenitor. ``0`` corresponds to the main progenitor, ``1`` to
+        the main merger halo, etc.
+
     Returns
     -------
     merger_indices: np.ndarray 
-        the indices of the second most massive progenitors (determined by the 
-        tree-node mass)
+        the indices of the n-th most massive progenitors (determined by the 
+        tree-node mass). -1 if the progenitor does not exist.
     """
+    if n <= 0:
+        raise ValueError("n needs to be larger than 0 (1==main progenitor)")
+
     if not isinstance(target_index, np.ndarray):
         if hasattr(target_index, "__len__"):
             target_index = np.array(target_index)
@@ -357,9 +363,9 @@ def get_main_merger_indices(forest: Mapping[str, np.ndarray],
     nhalos = len(target_index)
 
     # allocate an index array
-    merger_indices = np.empty(nhalos, dtype=np.int64)
+    progenitor_indices = np.empty(nhalos, dtype=np.int64)
 
     # fill index array
-    _get_main_merger_indices(progenitor_array, forest['progenitor_offsets'], forest['progenitor_sizes'], 
-                                target_index, merger_indices)
-    return merger_indices
+    _get_nth_progenitor_indices(progenitor_array, forest['progenitor_offset'], forest['progenitor_count'], 
+                                target_index, progenitor_indices, n)
+    return progenitor_indices
