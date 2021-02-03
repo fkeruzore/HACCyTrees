@@ -42,13 +42,15 @@ exist, the index is set to -1.
 
 This index matrix can then be used to get the history of any stored halo
 parameter. As an example, we can easily extract the mass history of all halos in
-the mass-bin [1e13, 1e14] at z=0:
+the mass-bin [1e13, 2e13] at z=0:
 
 .. code-block:: python
 
-    z0_mask = forest['snap_num'] == 100
+    z0_mask = forest['snapnum'] == 100
     mlim = [1e13, 2e13]
-    target_mask = z0_mask & (forest['mass'] > mlim[0]) * (forest['mass'] < mlim[1])
+    target_mask = z0_mask 
+                  & (forest['tree_node_mass'] > mlim[0]) 
+                  & (forest['tree_node_mass'] < mlim[1])
     target_idx = forest['halo_index'][target_mask]
         
     # this will create a matrix of shape (ntargets, nsteps), where each column 
@@ -61,7 +63,7 @@ the mass-bin [1e13, 1e14] at z=0:
     # Get the mass of the main branches
     active_mask = mainbranch_index != -1
     mainbranch_mass = np.zeros_like(mainbranch_index, dtype=np.float32)
-    mainbranch_mass[active_mask] = forest['mass'][mainbranch_index[active_mask]]
+    mainbranch_mass[active_mask] = forest['tree_node_mass'][mainbranch_index[active_mask]]
 
 
 Finding Major Mergers
@@ -110,11 +112,15 @@ mass of the main merger (secondary progenitor), i.e.
    # the index will be negative if there's no merger, mask those out
    merger_mask = main_merger_index >= 0
 
-   # allocate a merger_ratio array, 0 by default
-   merger_mass = np.zeros_like(main_progenitor_index, dtype=np.float32)
+   # allocate an array containing the merger masses, 0 by default
+   merger_mass = np.zeros_like(main_merger_index, dtype=np.float32)
 
-   # fill the elements for which a merger occurred with the mass ratio
+   # fill the elements for which a merger occurred with the mass of the main merger
    merger_mass[merger_mask] = forest['tree_node_mass'][main_merger_index[merger_mask]] 
+
+Then, halos that in the last timestep underwent a major merger defined by an
+absolute mass threshold ``mass_threshold``, can be selected by ``merger_mass >=
+mass_threshold``.
 
 
 --------------------------------------------------------------------------------
