@@ -122,6 +122,24 @@ Then, halos that in the last timestep underwent a major merger defined by an
 absolute mass threshold ``mass_threshold``, can be selected by ``merger_mass >=
 mass_threshold``.
 
+In both cases, the scale factor of the last major merger can be found by finding
+the last column at which the merger ratio or merger mass is above the threshold,
+i.e.
+
+.. code-block:: python
+
+   simulation = haccytrees.Simulation.simulations['LastJourney']
+   scale_factors = simulation.step2a(np.array(simulation.cosmotools_steps))
+   last_snap = len(simulation.cosmotools_steps) - 1
+
+   # with a relative threshold
+   last_mm_index = last_snap - np.argmax((merger_ratio > threshold)[:, ::-1], axis=1)
+   
+   # with an absolute threshold
+   last_mm_index = last_snap - np.argmax((merger_mass > threshold)[:, ::-1], axis=1)
+
+   last_mm_redshift = 1/scale_factors[last_mm_index] - 1
+
 
 --------------------------------------------------------------------------------
 
