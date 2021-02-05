@@ -89,12 +89,14 @@ used as follows:
    # the index will be negative if there's no merger, mask those out
    merger_mask = main_merger_index >= 0
 
-   # allocate a merger_ratio array, 0 by default
-   merger_ratio = np.zeros_like(main_progenitor_index, dtype=np.float32)
+   # allocate a merger_ratio matrix, 0 by default
+   merger_ratio = np.zeros_like(mainbranch_index, dtype=np.float32)
 
    # fill the elements for which a merger occurred with the mass ratio
-   merger_ratio[merger_mask] = forest['tree_node_mass'][main_merger_index[merger_mask]] / 
-                               forest['tree_node_mass'][main_progenitor_index[merger_mask]]
+   merger_ratio[np.nonzero(active_mask)[merger_mask]] = \
+       forest['tree_node_mass'][main_merger_index[merger_mask]] / 
+       forest['tree_node_mass'][main_progenitor_index[merger_mask]]
+   
    
 Major mergers can then be identified by finding the entries in ``merger_ratio``
 above the major merger threshold. 
@@ -113,10 +115,11 @@ mass of the main merger (secondary progenitor), i.e.
    merger_mask = main_merger_index >= 0
 
    # allocate an array containing the merger masses, 0 by default
-   merger_mass = np.zeros_like(main_merger_index, dtype=np.float32)
+   merger_mass = np.zeros_like(mainbranch_index, dtype=np.float32)
 
    # fill the elements for which a merger occurred with the mass of the main merger
-   merger_mass[merger_mask] = forest['tree_node_mass'][main_merger_index[merger_mask]] 
+   merger_mass[np.nonzero(active_mask)[merger_mask]] = \
+       forest['tree_node_mass'][main_merger_index[merger_mask]] 
 
 Then, halos that in the last timestep underwent a major merger defined by an
 absolute mass threshold ``mass_threshold``, can be selected by ``merger_mass >=
@@ -132,14 +135,19 @@ i.e.
    scale_factors = simulation.step2a(np.array(simulation.cosmotools_steps))
    last_snap = len(simulation.cosmotools_steps) - 1
 
-   # with a relative threshold
-   last_mm_index = last_snap - np.argmax((merger_ratio > threshold)[:, ::-1], axis=1)
-   
-   # with an absolute threshold
-   last_mm_index = last_snap - np.argmax((merger_mass > threshold)[:, ::-1], axis=1)
+   # major merger mask with a relative threshold
+   mm_mask = merger_ratio > threshold
+
+   # major merger mask with an absolute threshold
+   mm_mask = merger_mass > threshold
+
+   # finding the last index
+   last_mm_index = last_snap - np.argmax(mm_mask[:, ::-1], axis=1)
 
    last_mm_redshift = 1/scale_factors[last_mm_index] - 1
-
+   
+   # mark all halos without any major merger with a last_mm_redshift of -1
+   last_mm_redshift[~np.any(mm_mask, axis=1)] = -1
 
 --------------------------------------------------------------------------------
 
