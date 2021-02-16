@@ -27,7 +27,7 @@ read the first chunk:
        simulation="LastJourney", 
        nchunks=10, chunknum=0)
 
-The returned `forest` is a dictionary containing one-dimensional numpy arrays
+The returned ``forest`` is a dictionary containing one-dimensional numpy arrays.
 
 
 Extracting Main-Branch Matrices
@@ -53,7 +53,7 @@ the mass-bin [1e13, 2e13] at z=0:
                   & (forest['tree_node_mass'] < mlim[1])
     target_idx = forest['halo_index'][target_mask]
         
-    # this will create a matrix of shape (ntargets, nsteps), where each column 
+    # this will create a matrix of shape (ntargets, nsteps), where each row 
     # is the main progenitor branch of a target. It contains the indices to the 
     # forest data, and is -1 if the halo does not exist at that time
     mainbranch_index = haccytrees.mergertrees.get_mainbranch_indices(
@@ -93,7 +93,7 @@ used as follows:
    merger_ratio = np.zeros_like(mainbranch_index, dtype=np.float32)
 
    # fill the elements for which a merger occurred with the mass ratio
-   merger_ratio[np.nonzero(active_mask)[merger_mask]] = \
+   merger_ratio[tuple(np.argwhere(active_mask)[merger_mask].T)] = \
        forest['tree_node_mass'][main_merger_index[merger_mask]] / 
        forest['tree_node_mass'][main_progenitor_index[merger_mask]]
    
@@ -118,7 +118,7 @@ mass of the main merger (secondary progenitor), i.e.
    merger_mass = np.zeros_like(mainbranch_index, dtype=np.float32)
 
    # fill the elements for which a merger occurred with the mass of the main merger
-   merger_mass[np.nonzero(active_mask)[merger_mask]] = \
+   merger_mass[tuple(np.argwhere(active_mask)[merger_mask].T)] = \
        forest['tree_node_mass'][main_merger_index[merger_mask]] 
 
 Then, halos that in the last timestep underwent a major merger defined by an
