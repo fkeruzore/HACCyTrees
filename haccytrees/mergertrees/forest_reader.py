@@ -121,6 +121,21 @@ def _get_massthreshold_mask(snapnum, tree_node_mass, desc_node_index, mask, thre
         lastsnap = snapnum[i]
 
 
+@numba.jit(nopython=True, parallel=True)
+def _fix_branch_size(branch_size, mask):
+    nhalos = len(branch_size)
+    cumulative_counter = np.zeros(nhalos+1, dtype=np.uint64)
+    current_counter = 0
+    for i in range(nhalos):
+        cumulative_counter[i] = current_counter
+        current_counter += mask[i]
+    cumulative_counter[nhalos] = current_counter
+
+    for i in numba.prange(nhalos):
+        end = i+branch_size[i]
+        branch_size[i] = cumulative_counter[end] - cumulative_counter[i]
+
+
 def read_forest(filename: str, 
                 simulation: Union[str, Simulation],
                  *,
@@ -227,9 +242,15 @@ def read_forest(filename: str,
         # snapnum, tree_node_mass, desc_node_index, mask, threshold_mass, snap0
         _get_massthreshold_mask(data['snapnum'], data['tree_node_mass'], data['desc_node_index'], 
                                 mask, mass_threshold, len(simulation.cosmotools_steps))
+
+        # Fix branch size
+        _fix_branch_size(data['branch_size'], mask)
+
         # Apply mask
         for k in data.keys():
             data[k] = data[k][mask]
+
+        
 
     if add_scale_factor:
         steps = np.array(simulation.cosmotools_steps)
