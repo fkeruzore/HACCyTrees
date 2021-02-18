@@ -215,7 +215,7 @@ def overload(partition: Partition,
                 maskk = (maskj & (overload[2] == k))
                 add_exchange_indices(maskk, i, j, k)
 
-        for k in [1, 1]:
+        for k in [-1, 1]:
             # edge
             maskk = (maski & (overload[2] == k))
             add_exchange_indices(maskk, i, 0, k)
