@@ -48,8 +48,8 @@ the mass-bin [1e13, 2e13] at z=0:
 
     z0_mask = forest['snapnum'] == 100
     mlim = [1e13, 2e13]
-    target_mask = z0_mask 
-                  & (forest['tree_node_mass'] > mlim[0]) 
+    target_mask = z0_mask \
+                  & (forest['tree_node_mass'] > mlim[0]) \
                   & (forest['tree_node_mass'] < mlim[1])
     target_idx = forest['halo_index'][target_mask]
         

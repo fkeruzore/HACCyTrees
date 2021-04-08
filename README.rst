@@ -24,7 +24,7 @@ install the library.
 
 .. code-block:: bash
 
-   git clone https://xgitlab.cels.anl.gov/mbuehlmann/haccytrees.git
+   git clone https://git.cels.anl.gov/mbuehlmann/haccytrees.git
    cd haccytrees
 
    # Using pip to install the package
