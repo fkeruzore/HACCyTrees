@@ -17,7 +17,7 @@ from .fieldsconfig import FieldsConfig
 
 @numba.jit(nopython=True)
 def _descendant_index(ids, desc_ids):
-    desc_idx = np.copy(desc_ids)
+    desc_idx = np.empty_like(desc_ids)
     ids2idx = numba.typed.Dict.empty(numba.int64, numba.int64)
     for i in range(len(ids)):
         ids2idx[ids[i]] = i
@@ -29,6 +29,8 @@ def _descendant_index(ids, desc_ids):
             dix = ids2idx[desc_ids[i]]
             desc_idx[i] = dix
             progenitor_sizes[dix] += 1
+        else:
+            desc_idx[i] = -1
 
     progenitor_offsets = np.empty_like(progenitor_sizes)
 
