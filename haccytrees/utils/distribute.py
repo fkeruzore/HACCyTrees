@@ -5,12 +5,13 @@ import numpy as np
 
 TreeDataT = Mapping[str, np.ndarray]
 
-def distribute(partition: Partition, 
-               data: TreeDataT, 
-               xyz_keys: Tuple[str, str, str], 
+
+def distribute(partition: Partition,
+               data: TreeDataT,
+               xyz_keys: Tuple[str, str, str],
                *,
-               verbose: Union[bool, int]=False, 
-               verify_count: bool=True) -> TreeDataT:
+               verbose: Union[bool, int] = False,
+               verify_count: bool = True) -> TreeDataT:
     """Distribute data among MPI ranks according to data position and volume partition
 
     The position of each TreeData element is given by the x, y, and z columns
@@ -55,7 +56,7 @@ def distribute(partition: Partition,
 
     # count number of particles we have
     total_to_send = len(data[xyz_keys[0]])
-    
+
     if total_to_send > 0:
         # Check validity of coordinates
         for i in range(3):
@@ -65,11 +66,15 @@ def distribute(partition: Partition,
             if _min < 0 or _max > partition.box_size:
                 print(f"Error in distribute: position {xyz_keys[i]} out of range: [{_min}, {_max}]", file=sys.stderr, flush=True)
                 comm.Abort()
-        
+
         # Find home of each particle
         _i = (data[xyz_keys[0]] / partition.extent[0]).astype(np.int32)
         _j = (data[xyz_keys[1]] / partition.extent[1]).astype(np.int32)
         _k = (data[xyz_keys[2]] / partition.extent[2]).astype(np.int32)
+
+        _i = np.clip(_i, 0, partition.decomp[0]-1)
+        _j = np.clip(_j, 0, partition.decomp[1]-1)
+        _k = np.clip(_k, 0, partition.decomp[2]-1)
         home_idx = ranklist[_i, _j, _k]
     else:
         home_idx = np.empty(0, dtype=np.int32)
