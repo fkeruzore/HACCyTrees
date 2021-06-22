@@ -149,6 +149,46 @@ i.e.
    # mark all halos without any major merger with a last_mm_redshift of -1
    last_mm_redshift[~np.any(mm_mask, axis=1)] = -1
 
+
+Obtaining a Histogram of Infall Masses
+--------------------------------------
+
+The mass distribution of the halos that merge onto the main-progenitor branches
+of a halo (i.e. the infall masses) can be obtained with the function 
+:meth:`get_infall_histogram`.
+
+.. code-block:: python
+
+   # target all halos at z=0 in [10**13.0, 10**13.05] mass range
+   mask = forest['snapnum'] == 100
+   mask &= forest['tree_node_mass'] > 10**13.0
+   mask &= forest['tree_node_mass'] < 10**13.05
+   target_index = np.nonzero(mask)[0]
+   
+   # upper and lower masses for histogram in log units
+   m_low = 11
+   m_high = 13
+   nbins = 50
+   
+   infall_hist = haccytrees.mergertrees.get_infall_histogram(
+       fg_forest, 
+       target_index, 
+       10**m_low, 
+       10**m_high, 
+       nbins)
+
+   # calculate the bin centers 
+   imass_edges = np.linspace(m_low, m_high, nbins+1, endpoint=True)
+   imass_centers = 0.5*(imass_edges[1:] + imass_edges[:-1])
+   imass_centers = 10**imass_centers
+
+   # plot the distribution
+   fig, ax = plt.subplots()
+   ax.step(imass_centers, infall_hist, where='center')
+
+
+
+
 --------------------------------------------------------------------------------
 
 References
@@ -159,3 +199,5 @@ References
 .. autofunction:: get_mainbranch_indices
 
 .. autofunction:: get_nth_progenitor_indices
+
+.. autofunction:: get_infall_histogram
