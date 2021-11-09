@@ -281,6 +281,133 @@ def read_forest(
         return data, None
 
 
+def read_forest_targets(
+    filename: str,
+    simulation: Union[str, Simulation],
+    root_indices: List[int],
+    *,
+    include_fields: List[str] = None,
+    create_indices: bool = True,
+    add_scale_factor: bool = True,
+    mass_threshold: float = None,
+) -> Tuple[Mapping[str, np.ndarray], Optional[np.ndarray]]:
+    """Read a HDF5 merger-forest
+
+    Parameters
+    ----------
+
+    filename
+        the path to the merger forest file
+
+    simulation
+        either a valid simulation name or a Simulation instance, used to add the
+        scale factor to the output
+
+    root_indices
+        the start points of the subtrees that should be read (offset in the forest
+        arrays)
+
+    include_fields
+        the columns that will be read from the HDF5 file. If ``None``, all data
+        will be read. Note: some essential columns will always be read, check
+        ``haccytrees.mergertrees.forest_reader._essential_fields``.
+
+    create_indices
+        if ``True``, will add descendant_idx``, ``progenitor_count``,
+        ``progenitor_offset`` to the forest and return the ``progenitor_array``
+
+    add_scale_factor
+        if ``True``, will add the scale factor column to the forest data
+
+    mass_threshold
+        if not ``None``, the reader will prune all halos below the specified
+        mass threshold (in Msun/h)
+
+    Returns
+    -------
+    forest: Mapping[str, np.ndarray]
+        the merger tree forest data
+
+    progenitor_array: Optional[np.ndarray]
+        a progenitor index array that can be used together with the
+        ``progenitor_offset`` and ``progenitor_count`` arrays in the forest
+        data in order to easily find all progenitors of a halo. Only returned if
+        ``create_indices=True``.
+
+    """
+    if isinstance(simulation, str):
+        simulation = Simulation.simulations[simulation]
+    with h5py.File(filename, "r") as f:
+        nhalos = len(f["forest"]["tree_node_index"])
+        roots = np.array(f["index_499"]["index"])
+        file_end = roots[-1] + f["forest"]["branch_size"][roots[-1]]
+        assert np.max(root_indices) < file_end
+        starts = np.array(root_indices)
+        ends = starts + f["forest"]["branch_size"][root_indices]
+
+    root_sizes = ends - starts
+    data_size = np.sum(root_sizes)
+
+    with h5py.File(filename, "r") as f:
+        forest = f["forest"]
+        if include_fields is None:
+            include_fields = list(forest.keys())
+        else:
+            for k in _essential_fields:
+                if not k in include_fields:
+                    include_fields.append(k)
+
+        # allocate
+        data = {}
+        for k in include_fields:
+            data[k] = np.empty(data_size, dtype=forest[k].dtype)
+
+        # read
+        offset = 0
+        for i in range(len(root_indices)):
+            for k in include_fields:
+                data[k][offset : offset + root_sizes[i]] = forest[k][
+                    starts[i] : ends[i]
+                ]
+            offset += root_sizes[i]
+        assert offset == data_size
+
+    if mass_threshold is not None:
+        mask = np.empty(len(data["snapnum"]), dtype=np.bool)
+        # snapnum, tree_node_mass, desc_node_index, mask, threshold_mass, snap0
+        _get_massthreshold_mask(
+            data["snapnum"],
+            data["tree_node_mass"],
+            data["desc_node_index"],
+            mask,
+            mass_threshold,
+            len(simulation.cosmotools_steps),
+        )
+
+        # Fix branch size
+        _fix_branch_size(data["branch_size"], mask)
+
+        # Apply mask
+        for k in data.keys():
+            data[k] = data[k][mask]
+
+    if add_scale_factor:
+        steps = np.array(simulation.cosmotools_steps)
+        timestep = steps[data["snapnum"]]
+        data["scale_factor"] = simulation.step2a(timestep)
+
+    if create_indices:
+        indices = _create_indices(data["snapnum"], data["desc_node_index"])
+        progenitor_array = indices[1]
+        data["descendant_idx"] = indices[0]
+        data["progenitor_count"] = indices[2]
+        data["progenitor_offset"] = indices[3]
+        data["halo_index"] = np.arange(len(indices[0]))
+        return data, progenitor_array
+    else:
+        return data, None
+
+
 @numba.jit(nopython=True, parallel=True)
 def _get_mainbranch(snapnum, target_indices, mainbranch_matrix):
     ntargets = len(target_indices)
