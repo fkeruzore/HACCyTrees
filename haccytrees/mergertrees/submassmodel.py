@@ -8,113 +8,204 @@ from ..simulations import Simulation, Cosmology
 
 @numba.jit(nopython=True)
 def _create_submass_hostidx(
-    snapnum, desc_index, snap0, submass_hostidx, submass_infallidx, submass_snapnum
+    snapnum,
+    desc_index,
+    snap0,
+    sm_mainhostidx,
+    sm_infallidx,
+    sm_snapnum,
+    sm_hostmassidx,
+    scratch_idx,
 ):
-    nsub = len(submass_hostidx)
+    """calculate the index of the top host halo and immediate host (could be a subhalo)
+    for each subhalo array
+    """
     nhalos = len(snapnum)
+
     # A temporary array to keep track of the hosts in the current (sub)tree
-    snap_roots = np.empty(snap0 + 1, dtype=np.int64)
-    snap_roots[:] = -1
-    lastsnap = snapnum[0]
-    current_idx = 0
+    snap_mainhost_idx = np.empty(snap0 + 1, dtype=np.int64)
+    snap_mainhost_idx[:] = -1
+
+    # A temporary array to keep track of the direct host for a halo
+    snap_mainhost_row = np.empty(snap0 + 1, dtype=np.int64)
+    snap_mainhost_row[:] = -1
+
+    current_row = 0  # current row in the scratch array
+    lastsnap = snapnum[0]  # previous snapshot number
+    current_idx = 0  # current position in the subhalo arrays
     for i in range(nhalos):
-        # print(i, snap_roots)
+        # a completely new tree
         if desc_index[i] < 0:
-            # a completely new root
-            snap_roots[:] = -1
+            # reset arrays
+            snap_mainhost_idx[:] = -1
+            current_row = 0
+            snap_mainhost_row[:] = -1
+        # we are at a new "row" in matrix-layout
+        # don't do this when we start a new tree (elif)
         elif snapnum[i] >= lastsnap:
-            # we are at a new "row" in matrix-layout, fill in the subhalos
+            current_row += 1
+            directhost_row = snap_mainhost_row[snapnum[i] + 1]
+            assert directhost_row >= 0
+            # fill-in the subhalos
             for s in range(snap0, snapnum[i], -1):
-                submass_snapnum[current_idx] = s
-                submass_hostidx[current_idx] = snap_roots[s]
-                submass_infallidx[current_idx] = i
+                sm_snapnum[current_idx] = s
+                sm_mainhostidx[current_idx] = snap_mainhost_idx[s]
+                scratch_idx[current_row, s] = -current_idx - 1
+
+                # last index of the halo before merge
+                sm_infallidx[current_idx] = i
+
+                # direct host
+                sm_hostmassidx[current_idx] = scratch_idx[directhost_row, s]
+
+                # increment position in subhalo array
                 current_idx += 1
+
             # remove invalidated roots
             for s in range(lastsnap, snapnum[i]):
-                snap_roots[s] = -1
-        snap_roots[snapnum[i]] = i
+                snap_mainhost_idx[s] = -1
+                snap_mainhost_row[s] = -1
+
+        snap_mainhost_idx[snapnum[i]] = i
+        snap_mainhost_row[snapnum[i]] = current_row
+        scratch_idx[current_row, snapnum[i]] = i
         lastsnap = snapnum[i]
 
-    assert current_idx == nsub
+    assert current_idx == len(sm_mainhostidx)
 
 
-# TODO: subhalo of subhalo should use parent subhalo's mass as host mass, not the main's
 @numba.jit(nopython=True)
-def _create_submass_model(
-    snapnum, mass, desc_index, snap0, t_lb, tau_sub, zeta, submass
+def _submass_model(
+    snapnum,
+    mass,
+    desc_index,
+    snap0,
+    t_lb,
+    tau_sub,
+    zeta,
+    submass,
+    sm_directmassidx,
 ):
-    nsub = len(submass)
     nhalos = len(mass)
 
-    current_idx = nsub - 1
-    for i in range(nhalos - 1, -1, -1):
-        if desc_index[i] != -1 and desc_index[i] != i - 1:
-            # This halo merges
-            s_infall = snapnum[i]  # last snapshot the halo exists
-            # the last halo merged between lastsnap and lastsnap+1
-            t_lb_current = 0.5 * (t_lb[s_infall] + t_lb[s_infall + 1])
-            # the mass of the host at the first timestep of the subhalo
-            mass_host = mass[desc_index[i]]
-            # start of the subhalo mass: the infall mass
-            mass_sub = mass[i]
-            # the exponential factor
-            exp_fac = -1 / zeta
-            # loop over the snaps that need to be filled in
-            for j in range(snap0 - s_infall):
-                # make sure we're writing to a valid position
-                assert current_idx >= 0
-                # current snapshot we're working on
-                s = s_infall + j + 1
-                # host mass of previous step
-                mass_host = mass[desc_index[i] - j]
-                mass_fac = zeta * (mass_sub / mass_host) ** zeta
+    # the exponential factor
+    exp_fac = -1 / zeta
 
+    current_idx = 0
+    lastsnap = snapnum[0]
+    for i in range(nhalos):
+        if snapnum[i] >= lastsnap and desc_index[i] != -1:
+            # new branch
+            current_mass = mass[i]
+            s_infall = snapnum[i]
+            t_lb_current = 0.5 * (t_lb[s_infall] + t_lb[s_infall + 1])
+            branch_nsub = snap0 - snapnum[i]
+
+            # walk "backwards" through subhalo branch (starting from point of merger)
+            for j in range(branch_nsub):
+                # starting at the first snapshot the halo is a subhalo
+                s = snapnum[i] + 1 + j
+                # current_idx+branch_nsub is the start of the next subhalo
+                idx = current_idx + branch_nsub - (j + 1)
+
+                # is it a real host or another subhalo?
+                if sm_directmassidx[idx] >= 0:
+                    # real host – take mass after merger for first step, else previous
+                    lux = sm_directmassidx[idx] + 1 * (s != snapnum[i])
+                    mass_host = mass[lux]
+                else:
+                    lux = -sm_directmassidx[idx] - 1
+                    assert lux < idx
+                    mass_host = submass[lux]
+                assert mass_host > 0
+
+                mass_fac = zeta * (current_mass / mass_host) ** zeta
                 delta_t = t_lb_current - t_lb[s]
-                tau = tau_sub[s]  # from the paper: tau is computed at t+delta_t
-                submass[current_idx] = (
-                    mass_sub * (1 + mass_fac * delta_t / tau) ** exp_fac
-                )
+                tau = tau_sub[s]
+
+                submass[idx] = current_mass * (1 + mass_fac * delta_t / tau) ** exp_fac
 
                 # update time and mass
                 t_lb_current = t_lb[s]
-                mass_sub = submass[current_idx]
+                current_mass = submass[idx]
 
-                # update index
-                current_idx -= 1
+            current_idx += branch_nsub
+        lastsnap = snapnum[i]
 
-    assert current_idx == -1
+    assert current_idx == len(sm_directmassidx)
 
 
 @numba.jit(nopython=True)
-def _create_submass_data(mass, snapnum, snap0, desc_index, tau_sub, t_lb, zeta):
+def _count_sub_number(snapnum, snap0, desc_index):
     # Count number of subs we'll need to allocate
     nhalos = len(snapnum)
     lastsnap = snapnum[0]
     nsub = 0
+    maxrows = 0
     for i in range(nhalos):
-        if snapnum[i] >= lastsnap and desc_index[i] >= 0:
+        if desc_index[i] == -1:
+            current_row = 1
+        elif snapnum[i] >= lastsnap:
             # we are at a new "row" in matrix-layout
             # everything from z=0 to that halo will be a sub
             nsub += snap0 - snapnum[i]
+            current_row += 1
+            maxrows = max(maxrows, current_row)
         lastsnap = snapnum[i]
+    return nsub, maxrows
+
+
+def _create_submass_data(mass, snapnum, snap0, desc_index, tau_sub, t_lb, zeta):
+    # Count number of subs we'll need to allocate
+    nsub, maxrows = _count_sub_number(snapnum, snap0, desc_index)
 
     # Allocate arrays
     submass = np.empty(nsub, dtype=np.float32)
-    submass_hostidx = np.zeros(nsub, dtype=np.int64)
-    submass_infallidx = np.zeros(nsub, dtype=np.int64)
+    submass_mainhostidx = np.empty(nsub, dtype=np.int64)
+    submass_mainhostidx[:] = -(1 << 60)
+    submass_directhostidx = np.empty(nsub, dtype=np.int64)
+    submass_directhostidx[:] = -(1 << 60)
+    submass_infallidx = np.empty(nsub, dtype=np.int64)
     submass_snapnum = np.zeros(nsub, dtype=snapnum.dtype)
+
+    # Scratch space
+    scratch_idx = np.empty((maxrows, snap0 + 1), dtype=np.int64)
+    scratch_idx[:] = -(1 << 60)
 
     # Fill hostidx
     _create_submass_hostidx(
-        snapnum, desc_index, snap0, submass_hostidx, submass_infallidx, submass_snapnum
+        snapnum,
+        desc_index,
+        snap0,
+        submass_mainhostidx,
+        submass_infallidx,
+        submass_snapnum,
+        submass_directhostidx,
+        scratch_idx,
     )
+    assert np.sum(submass_mainhostidx < 0) == 0
+    assert np.sum(submass_directhostidx == -(1 << 60)) == 0
 
     # Fill submass (in reverse)
-    _create_submass_model(
-        snapnum, mass, desc_index, snap0, t_lb, tau_sub, zeta, submass
+    _submass_model(
+        snapnum,
+        mass,
+        desc_index,
+        snap0,
+        t_lb,
+        tau_sub,
+        zeta,
+        submass,
+        submass_directhostidx,
     )
 
-    return submass, submass_hostidx, submass_infallidx, submass_snapnum
+    return {
+        "mass": submass,
+        "hostidx": submass_mainhostidx,
+        "direct_hostidx": submass_directhostidx,
+        "infallidx": submass_infallidx,
+        "snapnum": submass_snapnum,
+    }
 
 
 @numba.jit(nopython=True, parallel=True)
@@ -163,55 +254,14 @@ def _subdata_hostidx_order(nhalos, submass_hostidx):
 
 
 def create_submass_data(
-    forest: Mapping[str, np.ndarray],
-    simulation: Simulation,
+    forest,
+    simulation,
     *,
     zeta: float = 0.1,
     A: float = 1.1,
     mass_threshold: float = None,
-    compute_fsub_stats: bool = False
-) -> Mapping[str, np.ndarray]:
-    """Apply subhalo mass-modelling (Sultan+ 2020) to all merging halos
-
-    This function will create a subhalo dataset containing the modelled masses
-    as well as the forest indices to the host halo and the infall halo they
-    belong to. It will also add a ``subdata_offset`` and ``subdata_size`` column
-    to the forest data that can be used to look-up subhalos belonging to a halo.
-
-    Parameters
-    ----------
-    forest
-        the full merger tree forest data
-
-    simulation
-        the simulation string or Simulation instance
-
-    zeta
-        the zeta parameter in the Sultan+ 2020 mass model
-
-    A
-        the A parameter in the Sultan+ 2020 mass model
-
-    mass_threshold
-        if not None, the subhalo mass will only be modelled as long as it is
-        above this threshold
-
-    compute_fsub_stats
-        if True, will calculate fsubtot (total mass of substructure) and
-        fsubmax (mass of the largest substructure), where the numbers are
-        relative to the host-halo mass. These columns will be added to the
-        ``forest`` data.
-
-    Returns
-    -------
-    subhalo_data: Mapping[str, np.ndarray]
-        the subhalo dataset, with the following columns:
-
-        - ``mass``:      the modeled subhalo mass
-        - ``hostidx``:   the array index to the host halo in the forest table
-        - ``infallidx``: the array index to the infall halo in the forest table
-        - ``snapnum``:   the snapshot number of the modeled subhalo mass
-    """
+    compute_fsub_stats: bool = False,
+):
     if isinstance(simulation, str):
         simulation = Simulation.simulations[simulation]
     cosmo = simulation.cosmo
@@ -235,22 +285,15 @@ def create_submass_data(
     nhalos = len(forest["snapnum"])
 
     # apply submass model
-    sub_mass, sub_hostidx, sub_infallidx, sub_snapnum = _create_submass_data(
+    subhalo_data = _create_submass_data(
         forest["tree_node_mass"],
         forest["snapnum"],
-        len(simulation.cosmotools_steps) - 1,
-        forest["descendant_idx"],
-        tau_sub,
-        t_lb,
-        zeta,
+        snap0=len(simulation.cosmotools_steps) - 1,
+        desc_index=forest["descendant_idx"],
+        tau_sub=tau_sub,
+        t_lb=t_lb,
+        zeta=zeta,
     )
-
-    subhalo_data = {
-        "mass": sub_mass,
-        "hostidx": sub_hostidx,
-        "infallidx": sub_infallidx,
-        "snapnum": sub_snapnum,
-    }
 
     # Apply mass threshold
     if mass_threshold is not None:
@@ -262,6 +305,10 @@ def create_submass_data(
     subdata_s, subdata_offset, subdata_size = _subdata_hostidx_order(
         nhalos, subhalo_data["hostidx"]
     )
+
+    # invert order
+    subdata_s = np.argsort(subdata_s)
+
     for k in subhalo_data.keys():
         subhalo_data[k] = subhalo_data[k][subdata_s]
     forest["subdata_offset"] = subdata_offset
@@ -280,4 +327,4 @@ def create_submass_data(
             forest["fsubmax"],
         )
 
-    return subhalo_data
+    return subhalo_data, subdata_s

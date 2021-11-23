@@ -40,6 +40,7 @@ def _create_desc_index(snapnum, desc_node_index):
     # Keep track of roots at each snap
     snapmax = np.max(snapnum)
     snap_roots = np.empty(int(snapmax + 3), dtype=np.int64)
+    snap_roots[:] = -1
 
     prev_sn = snapmax
     for i in range(N):
@@ -338,7 +339,6 @@ def read_forest_targets(
     if isinstance(simulation, str):
         simulation = Simulation.simulations[simulation]
     with h5py.File(filename, "r") as f:
-        nhalos = len(f["forest"]["tree_node_index"])
         roots = np.array(f["index_499"]["index"])
         file_end = roots[-1] + f["forest"]["branch_size"][roots[-1]]
         assert np.max(root_indices) < file_end
