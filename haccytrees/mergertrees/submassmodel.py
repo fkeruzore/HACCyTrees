@@ -4,8 +4,6 @@ from typing import Mapping, List
 from ..simulations import Simulation, Cosmology
 
 # TODO: parallelize numba functions: act on each root individually
-
-
 @numba.jit(nopython=True)
 def _create_submass_hostidx(
     snapnum,
@@ -111,7 +109,7 @@ def _submass_model(
                 # is it a real host or another subhalo?
                 if sm_directmassidx[idx] >= 0:
                     # real host – take mass after merger for first step, else previous
-                    lux = sm_directmassidx[idx] + 1 * (s != snapnum[i])
+                    lux = sm_directmassidx[idx] + 1 * (j != 0)
                     mass_host = mass[lux]
                 else:
                     lux = -sm_directmassidx[idx] - 1
@@ -273,13 +271,16 @@ def create_submass_data(
     Delta_vir = cosmo.virial_overdensity(a)
     Delta_vir_0 = cosmo.virial_overdensity(1)
 
-    # dynamical time of halo, in Gyr
-    tau_dyn = 1.628 / cosmo.h * (Delta_vir / Delta_vir_0) ** -0.5 * (H / H0) ** -1
+    # dynamical time of halo, in Gyr/h
+    tau_dyn = 1.628 * (Delta_vir / Delta_vir_0) ** -0.5 * (H / H0) ** -1
     # characteristic timescale of subhalo mass loss
     tau_sub = tau_dyn / A
 
-    # lookback time for each snapshot
-    t_lb = cosmo.lookback_time(a)
+    # TAU IMRAN
+    # 1.628/A * ( delta_vir(z)/delta_vir(0) )**(-0.5) * E(z)**(-1)
+
+    # lookback time for each snapshot (in Gyr/h)
+    t_lb = cosmo.lookback_time(a) * cosmo.h
 
     # number of (host) halos we're dealing with
     nhalos = len(forest["snapnum"])
@@ -327,4 +328,4 @@ def create_submass_data(
             forest["fsubmax"],
         )
 
-    return subhalo_data, subdata_s
+    return subhalo_data
