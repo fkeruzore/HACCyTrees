@@ -22,6 +22,10 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.8
+      - name: Install MPI
+        uses: mpi4py/setup-mpi@v1
+        with:
+          mpi: mpich
       # https://docs.github.com/en/actions/guides/building-and-testing-python#caching-dependencies
       # ^-- How to set up caching for pip on Ubuntu
       - name: Cache pip
