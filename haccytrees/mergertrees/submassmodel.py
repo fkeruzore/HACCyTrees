@@ -276,9 +276,6 @@ def create_submass_data(
     # characteristic timescale of subhalo mass loss
     tau_sub = tau_dyn / A
 
-    # TAU IMRAN
-    # 1.628/A * ( delta_vir(z)/delta_vir(0) )**(-0.5) * E(z)**(-1)
-
     # lookback time for each snapshot (in Gyr/h)
     t_lb = cosmo.lookback_time(a) * cosmo.h
 
