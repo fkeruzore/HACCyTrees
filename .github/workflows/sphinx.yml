@@ -41,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install numpy h5py numba mpi4py
+          pip install numpy h5py numba mpi4py drawSvg genericio
           pip install Sphinx sphinx-rtd-theme sphinxcontrib-napoleon numpydoc
           pip install .
       - name: Debugging information
