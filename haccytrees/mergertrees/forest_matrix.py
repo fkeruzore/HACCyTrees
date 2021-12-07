@@ -79,7 +79,7 @@ def forest2matrix(
         (optional) if set, a matrix of only the tree starting at `target_index` will be
         calculated
 
-    submass_data:
+    subhalo_data:
         currently does nothing
 
     branchmass_threshold:

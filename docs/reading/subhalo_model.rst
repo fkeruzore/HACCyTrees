@@ -10,13 +10,13 @@ depends on the mass of the subhalo and the host halo at infall:
 
 .. math::
 
-   m(t_\mathrm{infall} + \Delta t) = 
+   m(t + \Delta t) =
    \begin{cases}
-        m(t_\mathrm{infall}) \; \exp -\frac{\Delta t}{\tau} & \zeta = 0 \\
-        m(t_\mathrm{infall}) \left[ 
-            1 + \zeta \left( 
-            \frac{m(t_\mathrm{infall})}{M_\mathrm{host}(t_\mathrm{infall})} 
-            \right)^\zeta \frac{\Delta t}{\tau} 
+        m(t) \; \exp -\frac{\Delta t}{\tau} & \zeta = 0 \\
+        m(t) \left[
+            1 + \zeta \left(
+            \frac{m(t)}{M_\mathrm{host}(t)}
+            \right)^\zeta \frac{\Delta t}{\tau}
         \right]^{-1 / \zeta} & \mathrm{else},
    \end{cases}
 
@@ -38,9 +38,9 @@ generate substructure statistics for each host halo:
 .. code-block:: python
 
    subhalo_data = haccytrees.mergertrees.create_submass_data(
-       forest, 
-       'LastJourney', 
-       mass_threshold=1e10, 
+       forest,
+       'LastJourney',
+       mass_threshold=1e10,
        compute_fsub_stats=True)
 
 Setting ``compute_fsub_stats=True`` will add two columns to ``forest``,
@@ -73,7 +73,7 @@ distribution relative to the host halo:
    target_mass = forest['tree_node_mass'][target_idx]
    target_tnidx = forest['tree_node_index'][target_idx]
    h, e, _ = ax.hist(np.log10(subhalo_masses/target_mass), 50, histtype='step');
-   ax.set(yscale='log', xlim=e[[0,-1]], 
+   ax.set(yscale='log', xlim=e[[0,-1]],
           xlabel=r'$\log M_\mathrm{sub} \; / \; M_\mathrm{host}$',
           ylabel=r'$N_\mathrm{sub}$')
    ax.set_title(f'Halo {target_tnidx}: {len(subhalo_masses)} subhalos')
@@ -81,7 +81,7 @@ distribution relative to the host halo:
 
 .. figure:: subhalo_masses.svg
    :align: center
-   
+
    Mass distribution of the subhalos belonging to the most massive halo in our
    sample (``tree_node_index=2247296630669714101``, ``M = 1.28e15 # h-1 Msun``).
 
@@ -89,7 +89,7 @@ Following subhalo evolutions
 ----------------------------
 
 It is also possible to follow the (modeled) mass evolution of a merging halo as
-it merges and becomes a subhalo. The following example shows how one can do 
+it merges and becomes a subhalo. The following example shows how one can do
 this for a merger into the halo discussed above.
 
 
@@ -101,4 +101,4 @@ References
 
 
 .. [Sultan2020] Sultan et al. (2020)
-   arXiv: `2012.09262 <https://arxiv.org/abs/2012.09262>`_ 
+   arXiv: `2012.09262 <https://arxiv.org/abs/2012.09262>`_
