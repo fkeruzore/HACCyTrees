@@ -5,7 +5,7 @@ Welcome to haccytrees! This is a python library to create, read, and process
 large merger-tree forests created from HACC simulations, such as Last Journey.
 
 Documentation and usage examples are provided at
-`<https://www.hep.anl.gov/mbuehlmann/haccytrees>`_. The code is available at 
+`<https://argonnecpac.github.io/haccytrees/>`_. The code is available at
 `<https://github.com/ArgonneCPAC/haccytrees>`_.
 
 
@@ -24,7 +24,7 @@ install the library.
 
 .. code-block:: bash
 
-   git clone https://git.cels.anl.gov/mbuehlmann/haccytrees.git
+   git clone https://github.com/ArgonneCPAC/haccytrees.git
    cd haccytrees
 
    # Using pip to install the package
@@ -33,7 +33,7 @@ install the library.
    # Alternatively, using the setup.py installation script directly
    python setup.py install
 
-   # Altenratively, if you want to be able to edit / update the code without 
+   # Altenratively, if you want to be able to edit / update the code without
    # having to reinstall the library
    python setup.py develop
 
@@ -45,7 +45,7 @@ These python packages are required to be installed:
 
 * `numpy <https://numpy.org/>`_: Python array library
 
-* `numba <https://numba.pydata.org/>`_: used to speed up iterating across arrays 
+* `numba <https://numba.pydata.org/>`_: used to speed up iterating across arrays
   and trees
 
 * `h5py <https://www.h5py.org/>`_: a python HDF5 interface
@@ -63,7 +63,7 @@ packages are required:
 * `mpi4py <https://mpi4py.readthedocs.io/en/stable/>`_: MPI for Python to
   distribute the work-load
 
-* `pygio <https://xgitlab.cels.anl.gov/hacc/genericio>`_: The Python GenericIO
+* `pygio <https://git.cels.anl.gov/hacc/genericio>`_: The Python GenericIO
   interface that allows reading and writing GenericIO files from python with
-  and without MPI. Use `this <https://xgitlab.cels.anl.gov/hacc/genericio/-/blob/master/new_python/README.md>`_
+  and without MPI. Use `this <https://git.cels.anl.gov/hacc/genericio/-/blob/master/new_python/README.md>`_
   guide to install ``pygio``.
