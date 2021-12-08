@@ -6,7 +6,7 @@ large merger-tree forests created from HACC simulations, such as Last Journey.
 
 Documentation and usage examples are provided at
 `<https://www.hep.anl.gov/mbuehlmann/haccytrees>`_. The code is available at 
-`<https://git.cels.anl.gov/mbuehlmann/haccytrees>`_.
+`<https://github.com/ArgonneCPAC/haccytrees>`_.
 
 
 .. image:: tree_example.svg
