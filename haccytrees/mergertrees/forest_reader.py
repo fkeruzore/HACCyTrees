@@ -232,7 +232,7 @@ def read_forest(
             end = roots[(chunknum + 1) * chunksize]
     else:
         start = 0
-        end = nhalos
+        end = file_end
 
     with h5py.File(filename, "r") as f:
         forest = f["forest"]
