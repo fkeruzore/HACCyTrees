@@ -31,7 +31,9 @@ def _fill_matrix(mat, data, row_idx, col_idx):
 
 
 @numba.jit(nopython=True)
-def _fill_hostidx(tree_node_index_mat, top_host_row_mat, direct_host_row_mat):
+def _fill_hostidx(
+    tree_node_index_mat, fof_halo_tag_mat, top_host_row_mat, direct_host_row_mat, parent_tni_mat, parent_fof_mat,
+):
     nrows = tree_node_index_mat.shape[0]
     ncols = tree_node_index_mat.shape[1]
     host_rows_per_snap = np.empty(ncols, dtype=np.int64)
@@ -51,10 +53,14 @@ def _fill_hostidx(tree_node_index_mat, top_host_row_mat, direct_host_row_mat):
                     top_host_row_mat[i, j] = (
                         top_host_row if top_host_row != -1 else host_row
                     )
+                    parent_tni_mat[i, j] = tree_node_index_mat[top_host_row, j]
+                    parent_fof_mat[i, j] = fof_halo_tag_mat[top_host_row, j]
             else:
                 # a top halo
                 infall_col = j
                 host_rows_per_snap[j] = i
+                parent_tni_mat[i, j] = tree_node_index_mat[i, j]
+                parent_fof_mat[i, j] = fof_halo_tag_mat[i, j]
 
 
 def forest2matrix(
@@ -63,7 +69,7 @@ def forest2matrix(
     target_index: int = None,
     *,
     subhalo_data: Mapping[str, np.ndarray] = None,
-    branchmass_threshold: float = None
+    branchmass_threshold: float = None,
 ) -> Mapping[str, np.ndarray]:
     """Convert a haccytree forest to a matrix, where each row is a branch
 
@@ -91,14 +97,18 @@ def forest2matrix(
     matrices: Mapping[str, np.ndarray]
         arrays of shape `(nbranches, nsnapshots)` for each of the forest properties.
         Additionally, `matrices["top_host_row"]` contains the row number of the main
-        host, and `matrices["direct_host_row"]` contains the row of the direct host in
-        the hierarchy. Both are `-1` for host halos
+        host, `matrices["direct_host_row"]` contains the row of the direct host in
+        the hierarchy, and `matrices["parent_tni"] contains the `tree_node_index` of the
+        main (top) host halo. `top_host_row` and `direct_host_row` are `-1` for host
+        halos. `parent_tni` of a host halo is its own `tree_node_index`.
 
 
     Notes
     -----
-    All the properties (except `top_host_row` and `direct_host_row`) are 0 for entries
-    where the halo does not exist or when it's a subhalo.
+    All the properties (except `top_host_row`, `direct_host_row`, `parent_tni`) are 0
+    for entries where the halo does not exist or when the halo is a subhalo. For
+    `top_host_row`, `direct_host_row`, and `parent_tni`, the values are `-1` prior to
+    the nucleation of the branch.
 
     """
     if isinstance(simulation, str):
@@ -156,10 +166,16 @@ def forest2matrix(
     matrices["top_host_row"][:] = -1
     matrices["direct_host_row"] = np.empty((nrows, ncols), dtype=np.int64)
     matrices["direct_host_row"][:] = -1
+    matrices["parent_tni"] = np.empty((nrows, ncols), dtype=np.int64)
+    matrices["parent_tni"][:] = -1
+    matrices["parent_fof"] = np.empty((nrows, ncols), dtype=np.int64)
     _fill_hostidx(
         matrices["tree_node_index"],
+        matrices["fof_halo_tag"],
         matrices["top_host_row"],
         matrices["direct_host_row"],
+        matrices["parent_tni"],
+        matrices["parent_fof"]
     )
 
     return matrices
