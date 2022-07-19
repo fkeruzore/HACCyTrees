@@ -219,3 +219,8 @@ Farpoint = Simulation(
     cosmotools_steps=_ljfp_analysis_steps,
     fullalive_steps=_ljfp_analysis_steps,
 )
+
+
+FarpointSV = dataclasses.replace(
+    Farpoint, name="FarpointSV", rl=250, ng=3072, np=3072
+)
