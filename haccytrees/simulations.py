@@ -224,3 +224,16 @@ Farpoint = Simulation(
 FarpointSV = dataclasses.replace(
     Farpoint, name="FarpointSV", rl=250, ng=3072, np=3072, cosmotools_steps=_ljfp_analysis_steps[1:],
 )
+
+BorgCube = Simulation(
+    name="BorgCube",
+    cosmo=OuterRimCosmo,
+    rl=800,
+    ng=2304,
+    np=2304,
+    nsteps=500,
+    zstart=200.0,
+    zfin=0.0,
+    cosmotools_steps=_ljfp_analysis_steps,
+    fullalive_steps=_ljfp_analysis_steps,
+)
