@@ -40,6 +40,17 @@ _ljfp_analysis_steps = [
         235, 241, 247, 253, 259, 266, 272, 279, 286, 293, 300, 307, 315,
         323, 331, 338, 347, 355, 365, 373, 382, 392, 401, 411, 421, 432,
         442, 453, 464, 475, 487, 499]
+
+# Last Journey and Farpoint sims
+_borgcube_analysis_steps = [
+        46, 48, 49, 50, 52, 53, 54, 56, 57, 59, 60,
+        62, 63, 65, 67, 68, 70, 72, 74, 76, 77, 79, 81, 84, 86, 88,
+        90, 92, 95, 97, 100, 102, 105, 107, 110, 113, 116, 119, 121,
+        124, 127, 131, 134, 137, 141, 144, 148, 151, 155, 159, 163, 167,
+        171, 176, 180, 184, 189, 194, 198, 203, 208, 213, 219, 224, 230,
+        235, 241, 247, 253, 259, 266, 272, 279, 286, 293, 300, 307, 315,
+        323, 331, 338, 347, 355, 365, 373, 382, 392, 401, 411, 421, 432,
+        442, 453, 464, 475, 487, 499]
 # fmt: on
 
 
@@ -222,7 +233,12 @@ Farpoint = Simulation(
 
 
 FarpointSV = dataclasses.replace(
-    Farpoint, name="FarpointSV", rl=250, ng=3072, np=3072, cosmotools_steps=_ljfp_analysis_steps[1:],
+    Farpoint,
+    name="FarpointSV",
+    rl=250,
+    ng=3072,
+    np=3072,
+    cosmotools_steps=_ljfp_analysis_steps[1:],
 )
 
 BorgCube = Simulation(
@@ -234,6 +250,6 @@ BorgCube = Simulation(
     nsteps=500,
     zstart=200.0,
     zfin=0.0,
-    cosmotools_steps=_ljfp_analysis_steps,
+    cosmotools_steps=_borgcube_analysis_steps,
     fullalive_steps=_ljfp_analysis_steps,
 )
