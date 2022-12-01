@@ -3,10 +3,11 @@
 """
 
 from mpi4py import MPI
-import argparse
-import os, sys, traceback
+import click
+import sys, traceback
 import configparser, json
 from typing import Dict, Any
+from pathlib import Path
 
 from haccytrees.simulations import Simulation
 from haccytrees.mergertrees.assemble import FieldsConfig, catalog2tree, DerivedFields
@@ -24,20 +25,38 @@ def logger(x, **kwargs):
         print(x, flush=True, **kwargs)
 
 
-def parse_config(config: configparser.ConfigParser) -> Dict[str, Any]:
+def parse_config(config_path: Path) -> Dict[str, Any]:
+    config = configparser.ConfigParser()
+    config.read(config_path)
+
+    base_path = config_path.parent
+
     # Input
     simulation = config["simulation"]["simulation"]
-    simulation = Simulation.simulations[simulation]
+    if simulation.split(".")[-1] == "cfg":
+        if not Path(simulation).is_absolute():
+            simulation = base_path / simulation
+        simulation = Simulation.parse_config(simulation)
+    else:
+        # existing simulation in database
+        simulation = Simulation.simulations[simulation]
 
-    treenode_base = config["simulation"]["treenode_base"]
+    treenode_base = Path(config["simulation"]["treenode_base"])
+    if not treenode_base.is_absolute():
+        treenode_base = base_path / treenode_base
+
     rebalance_gio_read = config["simulation"].getboolean(
         "rebalance_gio_read", fallback=False
     )
 
     # Output
-    output_base = config["output"]["output_base"]
+    output_base = Path(config["output"]["output_base"])
+    if not output_base.is_absolute():
+        output_base = base_path / output_base
     split_output = config["output"].getboolean("split_output", fallback=True)
-    temporary_path = config["output"].get("temporary_path", fallback=None)
+    temporary_path = Path(config["output"].get("temporary_path", fallback=None))
+    if temporary_path is not None and not temporary_path.is_absolute():
+        temporary_path = base_path / temporary_path
 
     # Algorithm
     fail_on_desc_not_found = config["algorithm"].getboolean(
@@ -81,7 +100,7 @@ def parse_config(config: configparser.ConfigParser) -> Dict[str, Any]:
 
     return {
         "simulation": simulation,
-        "treenode_base": treenode_base,
+        "treenode_base": str(treenode_base),
         "rebalance_gio_read": rebalance_gio_read,
         "output_base": output_base,
         "split_output": split_output,
@@ -94,18 +113,19 @@ def parse_config(config: configparser.ConfigParser) -> Dict[str, Any]:
     }
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("config", type=str)
-    args = parser.parse_args()
-    if not os.path.exists(args.config):
-        print(f"Invalid config path: {args.config}", file=sys.stderr, flush=True)
-        comm.Abort(-102)
-
-    config = configparser.ConfigParser()
-    config.read(args.config)
-
-    config = parse_config(config)
+@click.command()
+@click.argument(
+    "config_path",
+    type=click.Path(
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=False,
+        path_type=Path,
+    ),
+)
+def cli(config_path: Path):
+    config = parse_config(config_path)
 
     try:
         catalog2tree(
@@ -125,3 +145,7 @@ if __name__ == "__main__":
         print(f"Uncaught error: {e}", file=sys.stderr, flush=True)
         print(traceback.format_exc(), file=sys.stderr, flush=True)
         comm.Abort(-101)
+
+
+if __name__ == "__main__":
+    cli()

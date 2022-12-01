@@ -208,10 +208,16 @@ def read_forest(
 
     """
     if isinstance(simulation, str):
-        simulation = Simulation.simulations[simulation]
+        if simulation[:-4] == ".cfg":
+            simulation = Simulation.parse_config(simulation)
+        else:
+            simulation = Simulation.simulations[simulation]
+
+    root_step = simulation.cosmotools_steps[-1]
+
     with h5py.File(filename, "r") as f:
         nhalos = len(f["forest"]["tree_node_index"])
-        roots = np.array(f["index_499"]["index"])
+        roots = np.array(f[f"index_{root_step}"]["index"])
         nroots = len(roots)
         if include_non_z0_roots:
             file_end = nhalos

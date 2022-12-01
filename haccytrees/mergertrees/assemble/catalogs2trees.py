@@ -203,10 +203,14 @@ def _catalog2tree_step(
 
     # read data and calculate derived fields (contains its own timers)
     with Timer(name="read treenodes", logger=logger):
+        if "#" in treenode_base:
+            treenode_filename = treenode_base.replace("#", str(step))
+        else:
+            treenode_filename = f"{treenode_base}{step}.treenodes"
         data = _read_data(
             partition=partition,
             simulation=simulation,
-            filename=f"{treenode_base}{step}.treenodes",
+            filename=treenode_filename,
             logger=logger,
             fields_config=fields_config,
             rebalance=rebalance_gio_read,
@@ -243,7 +247,7 @@ def _catalog2tree_step(
         desc_idx, progenitor_array, progenitor_offsets = _descendant_index(
             local_desc, data[fields_config.desc_node_index]
         )
-        if progenitor_array.min() < 0:
+        if len(progenitor_array) and progenitor_array.min() < 0:
             print(
                 f"invalid progenitor array on rank {partition.rank}",
                 file=sys.stderr,
@@ -290,8 +294,9 @@ def catalog2tree(
         a :class:`Simulation` instance containing the cosmotools steps
 
     treenode_base
-        the base path for the treenode files. The path will be completed by
-        appending ``[step].treenodes``.
+        the base path for the treenode files.
+        - if ``treenode_base`` contains ``#``, ``#`` will be replace by the current step number
+        - otherwise, the path will be completed by appending ``[step].treenodes``.
 
     fields_config
         a :class:`FieldsConfig` instance, containing the treenodes filed names
@@ -378,10 +383,14 @@ def catalog2tree(
 
     # read final snapshot (tree roots)
     with Timer(name="read treenodes", logger=logger):
+        if "#" in treenode_base:
+            treenode_filename = treenode_base.replace("#", str(steps[-1]))
+        else:
+            treenode_filename = f"{treenode_base}{steps[-1]}.treenodes"
         data = _read_data(
             partition,
             simulation,
-            f"{treenode_base}{steps[-1]}.treenodes",
+            treenode_filename,
             logger,
             fields_config,
             rebalance=rebalance_gio_read,

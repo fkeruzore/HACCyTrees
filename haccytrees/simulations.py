@@ -1,4 +1,5 @@
 import dataclasses
+import configparser
 import numpy as np
 from typing import List, ClassVar, Dict
 
@@ -83,9 +84,9 @@ class Cosmology:
             100
             * self.h
             * np.sqrt(
-                self.Omega_m * a ** -3
+                self.Omega_m * a**-3
                 + self.Omega_L
-                + (1 - self.Omega_m - self.Omega_L) * a ** -2
+                + (1 - self.Omega_m - self.Omega_L) * a**-2
             )
         )
 
@@ -94,7 +95,7 @@ class Cosmology:
         # Integrate 1/(a'*H(a')) da' from a to 1
         # TODO: add radiation / neutrinos
         integrand = lambda a: (
-            self.Omega_m / a + self.Omega_L * a ** 2 + (1 - self.Omega_m - self.Omega_L)
+            self.Omega_m / a + self.Omega_L * a**2 + (1 - self.Omega_m - self.Omega_L)
         ) ** (-0.5)
         da = 1e-3
         _a = np.linspace(a, 1, int(np.max((1 - a) / da)))
@@ -103,13 +104,13 @@ class Cosmology:
     def virial_overdensity(self, a):
         """Bryan & Norman Delta_vir"""
         x = self.func_Omega_m(a) - 1
-        return 18 * np.pi ** 2 + 82 * x - 39 * x ** 2
+        return 18 * np.pi**2 + 82 * x - 39 * x**2
 
     def func_E2(self, a):
-        return self.Omega_m * a ** -3 + self.Omega_L
+        return self.Omega_m * a**-3 + self.Omega_L
 
     def func_Omega_m(self, a):
-        return self.Omega_m * a ** -3 / self.func_E2(a)
+        return self.Omega_m * a**-3 / self.func_E2(a)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -149,13 +150,45 @@ class Simulation:
     def particle_mass(self):
         return _rhoc * self.cosmo.Omega_m * (self.rl / self.np) ** 3
 
+    @classmethod
+    def parse_config(cls, config_path: str) -> "Simulation":
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        cosmology_name = config.get("cosmology", "name")
+        cosmology = Cosmology(
+            name=cosmology_name,
+            Omega_m=float(config.get("cosmology", "Omega_m")),
+            Omega_b=float(config.get("cosmology", "Omega_b")),
+            Omega_L=float(config.get("cosmology", "Omega_L")),
+            h=float(config.get("cosmology", "h")),
+            ns=float(config.get("cosmology", "ns")),
+            s8=float(config.get("cosmology", "s8")),
+        )
+
+        simulation_name = config.get("simulation", "name")
+        simulation = Simulation(
+            name=simulation_name,
+            cosmo=cosmology,
+            rl=float(config.get("simulation", "rl")),
+            ng=int(config.get("simulation", "ng")),
+            np=int(config.get("simulation", "np")),
+            nsteps=int(config.get("simulation", "nsteps")),
+            zstart=float(config.get("simulation", "zstart")),
+            zfin=float(config.get("simulation", "zfin")),
+            cosmotools_steps=[
+                int(s) for s in config.get("simulation", "cosmotools_steps").split()
+            ],
+            fullalive_steps=[],
+        )
+        return simulation
+
 
 # Cosmological parameters used for OuterRim
 OuterRimCosmo = Cosmology(
     "OuterRimCosmo",
-    Omega_m=0.22 + 0.02258 / 0.71 ** 2,
-    Omega_b=0.02258 / 0.71 ** 2,
-    Omega_L=1 - 0.22 - 0.02258 / 0.71 ** 2,
+    Omega_m=0.22 + 0.02258 / 0.71**2,
+    Omega_b=0.02258 / 0.71**2,
+    Omega_L=1 - 0.22 - 0.02258 / 0.71**2,
     h=0.71,
     ns=0.963,
     s8=0.8,
@@ -165,9 +198,9 @@ OuterRimCosmo = Cosmology(
 # Cosmological parameters used for LJ
 LastJourneyCosmo = Cosmology(
     "LastJourneyCosmo",
-    Omega_m=0.26067 + 0.02242 / 0.6766 ** 2,
-    Omega_b=0.02242 / 0.6766 ** 2,
-    Omega_L=1 - 0.26067 - 0.02242 / 0.6766 ** 2,
+    Omega_m=0.26067 + 0.02242 / 0.6766**2,
+    Omega_b=0.02242 / 0.6766**2,
+    Omega_L=1 - 0.26067 - 0.02242 / 0.6766**2,
     h=0.6766,
     ns=0.9665,
     s8=0.8102,

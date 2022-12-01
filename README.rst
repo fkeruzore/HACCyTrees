@@ -18,9 +18,7 @@ Documentation and usage examples are provided at
 Installation
 ------------
 
-Currently, haccytrees is hosted on the Argonne CELS gitlab. To install haccytrees,
-you will need to clone the repository and then use `pip` or `python setup.py` to
-install the library.
+To install haccytrees, you will need to clone the repository and then use `pip`.
 
 .. code-block:: bash
 
@@ -30,18 +28,12 @@ install the library.
    # Using pip to install the package
    pip install .
 
-   # Alternatively, using the setup.py installation script directly
-   python setup.py install
-
-   # Altenratively, if you want to be able to edit / update the code without
-   # having to reinstall the library
-   python setup.py develop
-
 
 Requirements
 ------------
 
-These python packages are required to be installed:
+These python packages will be automatically installed if they are not yet in
+your python library:
 
 * `numpy <https://numpy.org/>`_: Python array library
 
@@ -57,13 +49,14 @@ For visualizations, these additional packages are required:
 * `drawSvg <https://github.com/cduck/drawSvg>`_: used to create SVG drawings of
   trees
 
-To actually process treenode files and generate merger forests, two additional
-packages are required:
+These two packages are required to run the HACC to haccytrees conversion:
 
 * `mpi4py <https://mpi4py.readthedocs.io/en/stable/>`_: MPI for Python to
   distribute the work-load
 
 * `pygio <https://git.cels.anl.gov/hacc/genericio>`_: The Python GenericIO
-  interface that allows reading and writing GenericIO files from python with
-  and without MPI. Use `this <https://git.cels.anl.gov/hacc/genericio/-/blob/master/new_python/README.md>`_
+  interface that allows reading and writing GenericIO files from python with and
+  without MPI. Use `this
+  <https://git.cels.anl.gov/hacc/genericio/-/blob/master/new_python/README.md>`_
   guide to install ``pygio``.
+

@@ -7,23 +7,25 @@ efficient tree-format. Each processed tree-file is self-contained, i.e. no trees
 are split among multiple files. See :ref:`sec-forest-layout` for more
 information about the final product.
 
-The MPI enabled python script in ``exectuables/treenodes2forest.py`` is the main
-executable which sets up the configuration and starts the conversion routine
-contained in :meth:`haccytrees.mergertrees.assemble.catalog2tree`. The settings
-have to be provided to the script through a configuration file, see
-:ref:`sec-assemble-configuration` for an example. The code can then be executed
-like
+The MPI enabled python script in ``haccytrees/scripts/treenodes2forest.py`` is
+the main executable which sets up the configuration and starts the conversion
+routine contained in :meth:`haccytrees.mergertrees.assemble.catalog2tree`. The
+settings have to be provided to the script through a configuration file, see
+:ref:`sec-assemble-configuration` for an example.
 
-.. code-block:: bash 
+Installing the ``haccytrees`` python module (see :ref:`install-haccytrees`) will
+add ``haccytrees-convert`` to your PATH (which is a wrapper of
+``treenodes2forest.py``). The code can then be executed like
 
-   EXECUTABLE=${HACCYTREES_DIR}/executables/treenodes2forest.py
+.. code-block:: bash
+
    CONFIG=treenodes2forest.cfg
-   mpirun -n 32 python ${EXECUTABLE} ${CONFIG}
+   mpirun -n <NPROC> haccytrees-convert ${CONFIG}
 
 .. note::
 
-   The script requires that ``haccytrees`` is installed as a python module, see
-   :ref:`install-haccytrees`.
+   Alternatively, you can run
+   ``mpirun -n <NPROC> python <PATH_TO_treenodes2forest.py> ${CONFIG}``
 
 .. note::
 
@@ -52,7 +54,7 @@ Distributing the data
 The rank to which a tree is assigned is determined by the position of the root
 halo at the last step, i.e. :math:`z=0`. The partitioning of the simulation
 volume is determined by the :class:`haccytrees.utils.partition.Partition`
-class, using MPI's 3D cartesian communicator. 
+class, using MPI's 3D cartesian communicator.
 
 We start by distributing the halos in the final snapshot, using the abstracted
 distribution function :meth:`haccytrees.utils.distribute.distribute`. We then
@@ -63,7 +65,7 @@ descendant halo. Those halos are then communicated with the 26 directly
 neighboring ranks, using a MPI graph communicator connecting each 26
 neighbor-set symmetrically. If there are still unaccounted halos left, those are
 assigned using an ``all2all`` exchange. This exchange functionality is
-implemented in :meth:`haccytrees.utils.distribute.exchange`. 
+implemented in :meth:`haccytrees.utils.distribute.exchange`.
 
 At each step, we also take note of the descendant halo array index in the
 previous step. This information then simplifies the next step, the reordering of
@@ -120,12 +122,12 @@ catalogs and the forest output, as well as some switches to optimize the
 routine. See the definition of the parameters in the following example
 configuration:
 
-.. literalinclude:: ../../executables/treenodes2forest.example.cfg
+.. literalinclude:: ../../haccytrees/scripts/treenodes2forest.example.cfg
    :caption: Example configuration for Last Journey
    :language: ini
 
 
-Example: Last Journey 
+Example: Last Journey
 ---------------------
 
 Creating the :ref:`sim_LastJourney` Merger Forest took 3.2 hours on cooley,
@@ -137,11 +139,19 @@ fraction of the total time is in MPI communications (distribute and exchange),
 insignificant amount of time.
 
 
-.. figure:: LJ_timing_32nodes.svg 
+.. figure:: LJ_timing_32nodes.svg
    :width: 100%
    :align: center
 
    Processing time of Last Journey, split by task
+
+
+Galaxy Merger trees
+-------------------
+
+The code also works for galaxy mergertrees. See
+``haccytrees/scripts/treenodes2forest.galaxymergertree.example.cfg`` for an
+example configuration file.
 
 References
 ----------
@@ -150,4 +160,4 @@ References
 
 
 .. [Rangel2020] Rangel et al. (2020)
-   arXiv:`2008.08519 <https://arxiv.org/abs/2008.08519>`_ 
+   arXiv:`2008.08519 <https://arxiv.org/abs/2008.08519>`_
