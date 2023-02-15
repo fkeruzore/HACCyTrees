@@ -5,6 +5,7 @@ env:
   DEFAULT_BRANCH: "master"
   SPHINXOPTS: "-W --keep-going -T"
   # ^-- If these SPHINXOPTS are enabled, then be strict about the builds and fail on any warnings
+  RDMAV_FORK_SAFE: 1
 
 jobs:
   build-and-deploy:
@@ -21,7 +22,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.10
       - name: Install MPI
         uses: mpi4py/setup-mpi@v1
         with:
