@@ -1,13 +1,14 @@
-from typing import Callable, List, Mapping, Tuple, Union
+from typing import Callable, Mapping, Union
 import numpy as np
 import pygio
 import numba
-import gc, sys
+import gc
+import sys
 from mpi4py import MPI
 
 from ...simulations import Simulation
-from ...utils.partition import Partition
-from ...utils.distribute import distribute, exchange
+from mpipartition import Partition
+from mpipartition import distribute, exchange
 from ...utils.timer import Timer, time
 from ...utils.datastores import GenericIOStore, NumpyStore
 from ...utils.memory import debug_memory
@@ -167,7 +168,12 @@ def _read_data(
     # assign to rank by position
     with Timer(name="read treenodes: distribute", logger=logger):
         data = distribute(
-            partition, data, fields_xyz, verbose=verbose, verify_count=True
+            partition,
+            simulation.rl,
+            data,
+            fields_xyz,
+            verbose=verbose,
+            verify_count=True,
         )
 
     # calculate derived fields
@@ -341,9 +347,7 @@ def catalog2tree(
 
     # Initialize MPI partition
     time.sleep(mpi_waittime)
-    partition = Partition(
-        simulation.rl, create_topo26=not do_all2all_exchange, mpi_waittime=mpi_waittime
-    )
+    partition = Partition(create_neighbor_topo=not do_all2all_exchange)
 
     # Wait a sec... (maybe solves MPI issues?)
     time.sleep(mpi_waittime)
@@ -360,7 +364,7 @@ def catalog2tree(
         print(f"Running catalog2tree with {partition.nranks} ranks")
         if verbose:
             print("Partition topology:")
-            print("  Decomposition: ", partition.decomp)
+            print("  Decomposition: ", partition.decomposition)
             print("  Ranklist: \n", partition.ranklist)
             print("", flush=True)
     if verbose > 1:
@@ -372,7 +376,7 @@ def catalog2tree(
                 print("  Origin:      ", partition.origin)
                 print("  Neighbors:   ", partition.neighbors)
                 if not do_all2all_exchange:
-                    n26 = partition.neighbors26
+                    n26 = partition.neighbor_ranks
                     print("  26-neighbors N : ", len(n26))
                     print("  26-neighbors   : ", n26)
                 print("", flush=True)
@@ -407,7 +411,7 @@ def catalog2tree(
     dtypes = {k: i.dtype for k, i in data.items()}
 
     # Containers to store local data from each snapshot
-    data_by_step = GenericIOStore(partition, temporary_path)
+    data_by_step = GenericIOStore(partition, simulation.rl, temporary_path)
     data_by_step[steps[-1]] = data
 
     index_by_step = NumpyStore(partition, temporary_path)
@@ -497,7 +501,8 @@ def catalog2tree(
     # Assert that we got all halos
     if new_branch_insert_pos != local_size:
         print(
-            f"Error (rank {partition.rank}): forest size is {new_branch_insert_pos} instead of {local_size}",
+            f"Error (rank {partition.rank}): forest size is {new_branch_insert_pos} "
+            f"instead of {local_size}",
             flush=True,
         )
         partition.comm.Abort()

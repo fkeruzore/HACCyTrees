@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple, Set, Mapping, Callable
+from typing import List, Tuple, Mapping, Callable
+
 
 @dataclass
 class FieldsConfig:
@@ -24,11 +25,11 @@ class FieldsConfig:
     sod_halo_com_y: str = "sod_halo_mean_y"
     sod_halo_com_z: str = "sod_halo_mean_z"
 
-    sod_halo_mass  : str = "sod_halo_mass"
+    sod_halo_mass: str = "sod_halo_mass"
     sod_halo_radius: str = "sod_halo_radius"
     tree_node_index: str = "tree_node_index"
     desc_node_index: str = "desc_node_index"
-    tree_node_mass : str = "tree_node_mass"
+    tree_node_mass: str = "tree_node_mass"
 
     # What we need to read (needs to be the same order on every rank!)
     read_fields: List[str] = field(default_factory=list)
@@ -42,10 +43,10 @@ class FieldsConfig:
     # The fields that are always necessary
     def get_essential(self):
         return [
-            self.tree_node_index, 
-            self.desc_node_index, 
-            self.tree_node_mass, 
-            self.node_position_x, 
-            self.node_position_y, 
-            self.node_position_z
-            ]
+            self.tree_node_index,
+            self.desc_node_index,
+            self.tree_node_mass,
+            self.node_position_x,
+            self.node_position_y,
+            self.node_position_z,
+        ]

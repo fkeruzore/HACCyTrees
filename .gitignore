@@ -32,7 +32,7 @@ nosetests.xml
 
 # Binaries
 *.hdf5
-*.hdf 
+*.hdf
 *.h5
 
 # IDEs
@@ -41,3 +41,7 @@ nosetests.xml
 # Builds
 build
 _build
+
+# other folders
+_notebooks
+.venv

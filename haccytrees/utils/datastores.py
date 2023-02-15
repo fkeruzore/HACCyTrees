@@ -1,37 +1,42 @@
 import numpy as np
 import pygio
-import os, glob
+import os
+import glob
 from typing import Mapping, Sequence
 
-from .partition import Partition
+from mpipartition import Partition
 from .timer import Timer
+
 
 class GenericIOStore:
     """A temporary storage that uses GenericIO to save data
 
-    The data has to be a Structure-of-Arrays (SoA) (i.e. a python dictionary 
+    The data has to be a Structure-of-Arrays (SoA) (i.e. a python dictionary
     `str`->`np.ndarray`), with each array having the same length.
 
-    This class behaves like a python dictionary of `SoA`s. If `temporary_path` 
+    This class behaves like a python dictionary of `SoA`s. If `temporary_path`
     is set, the arrays associated to a key will be stored in GenericIO files,
     otherwise, they will be kept in memory.
 
     Parameters
     ----------
-    partition : :class:`haccytrees.utils.partition.Partition`
+    partition : :class:`mpipartition.Partition`
         A Partition instance defining the MPI layout
-    
+
+    box_size : float
+        the physical size of the volume
+
     temporary_path : str
-        The base filesystem path where temporary data is stored. If `None`, the 
+        The base filesystem path where temporary data is stored. If `None`, the
         data will be kept in memory.
 
     Examples
     --------
 
     >>> # Creating a partition
-    >>> partition = haccytools.utils.partition.Parition(1.0)
+    >>> partition = mpipartition.Partition()
     >>> # Creating a store
-    >>> store = GenericIOStore(partition, './tmp')
+    >>> store = GenericIOStore(partition, 1.0, './tmp')
     >>> data = {x: np.random.uniform(10) for x in 'xyz'}
     >>> store['pos_0'] = data
     >>> del data
@@ -41,7 +46,10 @@ class GenericIOStore:
     >>> store.remove('pos_0')
 
     """
-    def __init__(self, partition: Partition, temporary_path: str=None):
+
+    def __init__(
+        self, partition: Partition, box_size: float, temporary_path: str = None
+    ):
         self._temporary_path = temporary_path
         self._data = {}
         self._partition = partition
@@ -51,7 +59,7 @@ class GenericIOStore:
 
         Parameters
         ----------
-        key 
+        key
             The storage key, will be appended to the `temporary_path` and
             therefore has to be a valid if used in a filesystem path.
         data
@@ -62,9 +70,13 @@ class GenericIOStore:
         if self._temporary_path is None:
             self._data[key] = data
         else:
-            rl = self._partition.box_size
             with Timer("temp storage: writing (GIO)", None):
-                pygio.write_genericio(f"{self._temporary_path}_{key}.tmp.gio", data, phys_origin=[0., 0., 0.], phys_scale=[rl, rl, rl])
+                pygio.write_genericio(
+                    f"{self._temporary_path}_{key}.tmp.gio",
+                    data,
+                    phys_origin=[0.0, 0.0, 0.0],
+                    phys_scale=[self.box_size] * 3,
+                )
 
     def __getitem__(self, key: str) -> Mapping[str, np.ndarray]:
         """Retrieve a Structure-of-Arrays from the store
@@ -83,9 +95,12 @@ class GenericIOStore:
             return self._data[key]
         else:
             with Timer("temp storage: reading (GIO)", None):
-                return pygio.read_genericio(f"{self._temporary_path}_{key}.tmp.gio", redistribute=pygio.PyGenericIO.MismatchBehavior.MismatchDisallowed)
+                return pygio.read_genericio(
+                    f"{self._temporary_path}_{key}.tmp.gio",
+                    redistribute=pygio.PyGenericIO.MismatchBehavior.MismatchDisallowed,
+                )
 
-    def get_field(self, key: str, field:Sequence[str]) -> np.ndarray:
+    def get_field(self, key: str, field: Sequence[str]) -> np.ndarray:
         """Retrieve specific arrays in a Structure-of-Arrays from the store
 
         Parameters
@@ -99,7 +114,7 @@ class GenericIOStore:
         Returns
         -------
         Mapping[str, np.ndarray]
-            The SoA associated with the key, with only the fields specified. 
+            The SoA associated with the key, with only the fields specified.
             A python dictionary of type `{str: np.ndarray}`.
         """
         if not isinstance(field, list):
@@ -108,7 +123,11 @@ class GenericIOStore:
             return {f: self._data[key][f] for f in field}
         else:
             with Timer("temp storage: reading (GIO)", None):
-                return pygio.read_genericio(f"{self._temporary_path}_{key}.tmp.gio", field, redistribute=pygio.PyGenericIO.MismatchBehavior.MismatchDisallowed)
+                return pygio.read_genericio(
+                    f"{self._temporary_path}_{key}.tmp.gio",
+                    field,
+                    redistribute=pygio.PyGenericIO.MismatchBehavior.MismatchDisallowed,
+                )
 
     def remove(self, key: str) -> None:
         """Delete a stored SoA (from memory or disk)
@@ -152,14 +171,14 @@ class GenericIOStore:
 class NumpyStore:
     """A temporary storage that uses numpy.savez to save data
 
-    The data has to be a dictionary of arrays (i.e. `str`->`np.ndarray`), 
-    arrays can have variable lengths and dimensions. If `temporary_path` 
+    The data has to be a dictionary of arrays (i.e. `str`->`np.ndarray`),
+    arrays can have variable lengths and dimensions. If `temporary_path`
     is set, the arrays associated to a key will be stored in `.npz` files (one
     per MPI rank), otherwise, they will be kept in memory.
 
     :param partition: A Partition instance defining the MPI layout
-    :type partition: :class:`haccytrees.utils.partition.Partition`
-    
+    :type partition: :class:`mpipartition.Partition`
+
     :param temporary_path: The base filesystem path where temporary data is
         stored. If `None`, the data will be kept in memory.
     :type temporary_path: `Optional[str]`
@@ -168,7 +187,7 @@ class NumpyStore:
     --------
 
     >>> # Creating a partition
-    >>> partition = haccytools.utils.partition.Parition(1.0)
+    >>> partition = mpipartition.Partition()
     >>> # Creating a store
     >>> store = NumpyStore(partition, './tmp')
     >>> data = {x: np.random.uniform(10) for x in 'xyz'}
@@ -179,11 +198,14 @@ class NumpyStore:
     >>> store.remove('pos_0')
 
     """
-    def __init__(self, partition: Partition, temporary_path: str=None):
+
+    def __init__(self, partition: Partition, temporary_path: str = None):
         self._temporary_path = temporary_path
         self._data = {}
         self._partition = partition
-        self._filename_fct = lambda key: f"{self._temporary_path}_{key}.tmp.rank-{self._partition.rank}.npz"
+        self._filename_fct = lambda key: (
+            f"{self._temporary_path}_{key}.tmp.rank-{self._partition.rank}.npz"
+        )
 
     def __setitem__(self, key: str, data: Mapping[str, np.ndarray]) -> None:
         """Adding a dictionary of arrays to the storage
@@ -236,7 +258,7 @@ class NumpyStore:
         else:
             with Timer("temp storage: cleanup (NPY)", None):
                 os.remove(self._filename_fct(key))
-                   
+
     def pop(self, key: str) -> Mapping[str, np.ndarray]:
         """Retrieve stored data and remove from storage (memory or disk)
 

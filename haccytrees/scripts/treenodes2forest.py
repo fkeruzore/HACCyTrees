@@ -4,8 +4,10 @@
 
 from mpi4py import MPI
 import click
-import sys, traceback
-import configparser, json
+import sys
+import traceback
+import configparser
+import json
 from typing import Dict, Any
 from pathlib import Path
 

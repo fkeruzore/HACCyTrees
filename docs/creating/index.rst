@@ -53,11 +53,11 @@ Distributing the data
 
 The rank to which a tree is assigned is determined by the position of the root
 halo at the last step, i.e. :math:`z=0`. The partitioning of the simulation
-volume is determined by the :class:`haccytrees.utils.partition.Partition`
+volume is determined by the :class:`mpipartition.Partition`
 class, using MPI's 3D cartesian communicator.
 
 We start by distributing the halos in the final snapshot, using the abstracted
-distribution function :meth:`haccytrees.utils.distribute.distribute`. We then
+distribution function :meth:`mpipartition.distribute`. We then
 iterate backwards over the snapshots. The halos in each snapshot are first
 distributed by their position. Afterwards, halos that may have crossed the rank
 boundaries are accounted for by marking all halos that don't have a local
@@ -65,7 +65,7 @@ descendant halo. Those halos are then communicated with the 26 directly
 neighboring ranks, using a MPI graph communicator connecting each 26
 neighbor-set symmetrically. If there are still unaccounted halos left, those are
 assigned using an ``all2all`` exchange. This exchange functionality is
-implemented in :meth:`haccytrees.utils.distribute.exchange`.
+implemented in :meth:`mpipartition.exchange`.
 
 At each step, we also take note of the descendant halo array index in the
 previous step. This information then simplifies the next step, the reordering of

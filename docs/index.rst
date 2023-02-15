@@ -35,9 +35,6 @@
       :caption: Extra utilities
       :maxdepth: 1
 
-      utils/overview
-      utils/partition
-      utils/distribute
       utils/temporary_storage
 
 
