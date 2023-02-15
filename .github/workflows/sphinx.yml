@@ -12,13 +12,13 @@ jobs:
     name: Build and gh-pages
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          lfs: true
+          lfs: false
       
       - name: Install Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
           
@@ -36,7 +36,7 @@ jobs:
           
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
@@ -44,11 +44,10 @@ jobs:
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
-      - name: Install library
-        run: poetry install --no-interaction
         
       - name: Debugging information
         run: |
+          source .venv/bin/activate
           echo "github.ref:" ${{github.ref}}
           echo "github.event_name:" ${{github.event_name}}
           echo "github.head_ref:" ${{github.head_ref}}
@@ -67,6 +66,7 @@ jobs:
       - name: Build Sphinx docs
         working-directory: ./docs
         run: |
+          source ../.venv/bin/activate
           make dirhtml
           # This fixes broken copy button icons, as explained in
           #   https://github.com/coderefinery/sphinx-lesson/issues/50
