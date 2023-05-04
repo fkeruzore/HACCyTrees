@@ -1,0 +1,6 @@
+module load cray-mpich
+module load rocm
+module load cray-python
+export CC=cc
+export CXX=CC
+export LD_PRELOAD="/opt/cray/pe/lib64/libsci_cray_mp.so.5:$LD_PRELOAD"
