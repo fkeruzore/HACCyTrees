@@ -53,6 +53,7 @@ class GenericIOStore:
         self._temporary_path = temporary_path
         self._data = {}
         self._partition = partition
+        self.box_size = box_size
 
     def __setitem__(self, key: str, data: Mapping[str, np.ndarray]) -> None:
         """Adding an SoA to the storage
