@@ -45,3 +45,5 @@ _build
 # other folders
 _notebooks
 .venv
+
+tmp/

@@ -246,7 +246,7 @@ def read_forest(
             include_fields = list(forest.keys())
         else:
             for k in _essential_fields:
-                if not k in include_fields:
+                if k not in include_fields:
                     include_fields.append(k)
         data = {}
         for k in include_fields:

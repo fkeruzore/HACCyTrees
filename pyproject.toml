@@ -6,6 +6,7 @@ authors = ["Michael Buehlmann <buehlmann.michi@gmail.com>"]
 
 [tool.poetry.scripts]
 haccytrees-convert = "haccytrees.scripts.treenodes2forest:cli"
+reorganize-coreproperties = "haccytrees.scripts.reorganize_coreproperties:cli"
 
 [tool.poetry.dependencies]
 python = ">=3.8.0,<3.11"
@@ -21,7 +22,7 @@ Jinja2 = "^3.1.2"
 mpi4py = "^3.1.4"
 h5py = "^3.8.0"
 drawSvg = "^1.9.0"
-mpipartition = "^1.0.1"
+mpipartition = "^1.0.5"
 
 
 [tool.poetry.group.dev.dependencies]
