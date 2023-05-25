@@ -72,10 +72,11 @@ def reorganize_coreproperties(
     )
     tracked_dtypes = {k: d.dtype for k, d in coreprops.items()}
 
-    # order by fof tag
-    # TODO: make sure central comes first
-    s = np.argsort(coreprops["fof_halo_tag"])
+    # order by fof tag and centrals (for each fof tag, centrals come first)
+    # s = np.argsort(coreprops["fof_halo_tag"])
+    s = np.lexsort([-coreprops["central"], coreprops["fof_halo_tag"]])
     coreprops = {k: d[s] for k, d in coreprops.items()}
+    root_idx = np.nonzero(coreprops["central"])[0]
 
     central_mask = coreprops["central"] == 1
     fof_tags = np.sort(coreprops["fof_halo_tag"][central_mask])
@@ -197,14 +198,17 @@ def reorganize_coreproperties(
                 data[_idx] = _d[k]
             assert np.all(mask)
             g_data.create_dataset(k, data=data)
+
         data = np.empty(np.sum(owned_core_tags_length), dtype=np.int16)
+
         for i, snapnum in enumerate(range(len(steps) - 1, -1, -1)):
             step = steps[snapnum]
             _d = npstore[step]
             _idx = own_core_offsets[_d["assign_idx"]] + i
             assert np.all(_idx < own_core_offsets[_d["assign_idx"] + 1])
             data[_idx] = snapnum
-            g_data.create_dataset("snapnum", data=data)
+        g_data.create_dataset("snapnum", data=data)
 
-        # g_idx = f.create_group("index")
+        g_idx = f.create_group("index")
+        g_idx.create_dataset("root_idx", data=own_core_offsets[root_idx])
         # TODO: add index data
