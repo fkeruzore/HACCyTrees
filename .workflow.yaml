@@ -1,0 +1,21 @@
+drivers:
+  - haccytrees:
+      executable: haccytrees-convert
+      inputs:
+        - treenodes-updated
+      outputs:
+        - haccytrees-forest
+      repository: https://github.com/ArgonneCPAC/haccytrees
+      documentation: https://argonnecpac.github.io/haccytrees/
+      contact: Michael Buehlmann
+      usage: |
+        mpirun -n <NPROC> haccytrees-convert <CONFIG_FILE>
+      notes: >
+        Details on how to configure and run ``haccytrees`` can be found on
+        https://argonnecpac.github.io/haccytrees/creating/
+
+data_products:
+  - haccytrees-forest:
+      format: HDF5
+      file-extension: .forest
+      description: depth-first mergertree forest layout, use the haccytrees Python library to read the data.
