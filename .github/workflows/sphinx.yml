@@ -43,7 +43,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root --with docs,assemble,dev
+        run: poetry install --no-interaction --with docs,assemble,dev
 
       - name: Debugging information
         run: |
