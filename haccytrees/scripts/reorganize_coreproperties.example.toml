@@ -1,0 +1,77 @@
+################################################################################
+# This is an example configuration for the Last Journey simulation             #
+#                                                                              #
+# The required sections are:                                                   #
+# - simulation: name of the simulation, data location                          #
+# - columns:    the naming of the columns in the treenode catalogs             #
+# - output:     the output file and the columns to store / calculate           #
+# - algorithm:  some additional switches, failure triggers, verbosity          #
+################################################################################
+
+[simulation]
+# the simulation is used to determine cosmotools steps, scale factors, etc.
+# has to be supported by haccytrees/simulations.py
+simulation          = "LastJourney"
+# the base-path of the coreproperties. The files are assumed to be named e.g.
+# ./treenodes/m000p-499.coreproperties
+coreproperties_base = "./coreproperties/m000p-"
+# alternatively, you can specify it like this:
+# coreproperties_base = ./STEP#/m000p-#.coreproperties
+
+[columns]
+# how the fields in the treenode catalogs are named – can change from simulation
+# to simulation, e.g. fof_halo_mean vs fof_halo_com.
+
+
+# This determines which field is used to distribute the halos among the ranks.
+# Has to be available for all halos, e.g. not SOD positions.
+node_position_x   = "x"
+node_position_y   = "y"
+node_position_z   = "z"
+
+[output]
+# The base of the output files. If `split_output` is enabled, files will be
+# named e.g. `m000p.coreforest.001.hdf5` for rank 0.
+output_base    = "m000p.coreforest"
+# If false, haccytrees will store the forest trees in a single file. Not
+# suitable for large simulations.
+split_output   = "yes"
+# The base path where temporary files will be stored. If this setting is
+# commented out, all the data will be kept in memory instead.
+temporary_path = "tmp/m000p.temp"
+
+# The fields that will be copied to the final output. If a list of two names
+# are given, the field will be read using the first name and stored using the
+# second.
+copy_fields    = [
+    # core properties
+    ["core_tag", "core_tag"],
+    ["x", "x"],
+    ["y", "y"],
+    ["z", "z"],
+    ["vx", "vx"],
+    ["vy", "vy"],
+    ["vz", "vz"],
+    ["radius", "radius"],
+    ["central", "central"],
+    ["merged", "merged"],
+    ["vel_disp", "vel_disp"],
+    ["host_core", "host_core"],
+    # halo properties
+    ["fof_halo_tag", "fof_halo_tag"],
+    ["tree_node_index", "tree_node_index"],
+    ["infall_tree_node_mass", "infall_tree_node_mass"],
+    ["infall_fof_halo_mass", "infall_fof_halo_mass"],
+    ["infall_fof_halo_center_x", "infall_fof_halo_center_x"],
+    ["infall_fof_halo_center_y", "infall_fof_halo_center_y"],
+    ["infall_fof_halo_center_z", "infall_fof_halo_center_z"],
+    ["infall_fof_halo_mean_vx", "infall_fof_halo_com_vx"],
+    ["infall_fof_halo_mean_vy", "infall_fof_halo_com_vy"],
+    ["infall_fof_halo_mean_vz", "infall_fof_halo_com_vz"],
+    ["infall_step", "infall_step"],
+    ["infall_fof_halo_tag", "infall_fof_halo_tag"],
+    ["infall_tree_node_index", "infall_tree_node_index"],
+]
+
+[algorithm]
+verbose = 0

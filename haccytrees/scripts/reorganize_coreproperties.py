@@ -1,22 +1,33 @@
 from mpipartition import Partition
-from haccytrees.coretrees.assemble import reorganize_coreproperties
-from haccytrees.simulations import Simulation
+from haccytrees.coretrees.assemble import (
+    reorganize_coreproperties,
+    CoretreesAssemblyConfig,
+)
 import click
+import os
+from pathlib import Path
 
 
 @click.command()
-@click.argument("coreproperties_base", type=str)
-@click.argument("simulation_name", type=str)
-@click.argument("output_base", type=str)
-def cli(coreproperties_base, simulation_name, output_base):
+@click.argument(
+    "config_file",
+    type=click.Path(
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=False,
+        path_type=Path,
+    ),
+)
+def cli(config_file: Path):
+    config = CoretreesAssemblyConfig.parse_config(config_file)
     partition = Partition(create_neighbor_topo=True)
-    simulation = Simulation.simulations[simulation_name]
-    reorganize_coreproperties(
-        partition,
-        coreproperties_base,
-        simulation,
-        output_base,
-    )
+
+    if partition.rank == 0 and not os.path.exists(config.temporary_path):
+        os.makedirs(config.temporary_path)
+
+    partition.comm.Barrier()
+    reorganize_coreproperties(partition, config)
 
 
 if __name__ == "__main__":
