@@ -74,17 +74,20 @@ def coreforest2matrix(forest: Mapping[str, np.ndarray], simulation: Simulation):
     top_host_row = np.empty((nrows, ncols), dtype=np.int64)
     top_host_row[:] = -1
     for s in range(ncols):
+        _mask = forest_matrices["core_tag"][:, s] > 0
+        assert np.all(forest_matrices["host_core"][_mask, s] > 0)
+
         core_tag_s = np.argsort(forest_matrices["core_tag"][:, s])
-        core_tag_s = core_tag_s[forest_matrices["core_tag"][core_tag_s, s] > 0]
+        core_tag_s = core_tag_s[_mask[core_tag_s]]
         core_tag_sorted = forest_matrices["core_tag"][core_tag_s, s]
-        _mask = forest_matrices["host_core"][:, s] > 0
+
         _host_row = np.searchsorted(
             core_tag_sorted, forest_matrices["host_core"][_mask, s]
         )
         assert np.all(
             core_tag_sorted[_host_row] == forest_matrices["host_core"][_mask, s]
         )
-        host_row[_mask, s] = core_tag_s[host_row[_mask, s]]
+        host_row[_mask, s] = core_tag_s[_host_row]
         _top_host_row = np.empty_like(host_row[:, s])
         _top_host_row[:] = -1
         _get_top_host_row(host_row[:, s], _top_host_row)
