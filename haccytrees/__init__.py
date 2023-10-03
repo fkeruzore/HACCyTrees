@@ -2,7 +2,7 @@
 
 __author__ = """Michael Buehlmann"""
 __email__ = "buehlmann.michi@gmail.com"
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 
 from .simulations import Simulation
 
