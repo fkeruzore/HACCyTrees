@@ -9,24 +9,24 @@ haccytrees-convert = "haccytrees.scripts.treenodes2forest:cli"
 reorganize-coreproperties = "haccytrees.scripts.reorganize_coreproperties:cli"
 
 [tool.poetry.dependencies]
-python = ">=3.8.0,<3.11"
-numpy = "^1.23.0,<1.24"
+python = ">=3.9.0,<3.13"
+numpy = "^1.24.0"
 matplotlib = "^3.7.1"
-numba = "^0.56.4"
+numba = "^0.58.0"
 click = "^8.1.3"
 toml = "^0.10.2"
 colossus = "^1.3.1"
 scipy = "^1.10.1"
 h5py = "^3.8.0"
 drawSvg = "^1.9.0"
-mpipartition = "^1.0.5"
+
 
 [tool.poetry.group.assemble]
 optional = true
 
 [tool.poetry.group.assemble.dependencies]
-pygio = { git = "https://git.cels.anl.gov/hacc/genericio.git"}
-mpi4py = "^3.1.4"
+pygio = { git = "https://git.cels.anl.gov/hacc/genericio.git" }
+mpipartition = "^1.0.5"
 
 [tool.poetry.group.docs]
 optional = true
