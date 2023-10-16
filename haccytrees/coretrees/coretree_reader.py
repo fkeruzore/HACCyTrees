@@ -160,7 +160,7 @@ def corematrix_reader(
 
     # read index, find start and end of chunk
     with h5py.File(filename) as forest_file:
-        ncores = forest_file["data"]["core_tag"][:]
+        ncores = len(forest_file["data"]["core_tag"][:])
         roots = forest_file["index"]["root_idx"][:]
         nroots = len(roots)
         file_end = ncores
