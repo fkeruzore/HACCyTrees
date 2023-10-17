@@ -172,11 +172,15 @@ def corematrix_reader(
             chunknum = 0
         if chunknum >= nchunks:
             print(f"invalid chunknum: {chunknum} needs to be smaller than {nchunks}")
-        start = roots[chunknum * chunksize]
+        startroot = chunknum * chunksize
+        endroot = min(nroots, (chunknum + 1) * chunksize)
+        start = roots[startroot]
         if chunknum == nchunks - 1:
             end = file_end
         else:
-            end = roots[(chunknum + 1) * chunksize]
+            end = roots[endroot]
+        roots = roots[startroot:endroot]
+        roots -= start
     else:
         start = roots[0]
         end = file_end

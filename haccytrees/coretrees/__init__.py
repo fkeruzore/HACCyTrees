@@ -1,1 +1,3 @@
-from .coretree_reader import corematrix_reader, coreforest2matrix
+from .coretree_reader import corematrix_reader
+
+__all__ = ("corematrix_reader",)
