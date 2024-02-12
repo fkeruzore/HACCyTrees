@@ -47,9 +47,6 @@ def parse_config(config_path: Path) -> Dict[str, Any]:
     if not treenode_base.is_absolute():
         treenode_base = base_path / treenode_base
 
-    rebalance_gio_read = config["simulation"].getboolean(
-        "rebalance_gio_read", fallback=False
-    )
 
     # Output
     output_base = Path(config["output"]["output_base"])
@@ -103,7 +100,6 @@ def parse_config(config_path: Path) -> Dict[str, Any]:
     return {
         "simulation": simulation,
         "treenode_base": str(treenode_base),
-        "rebalance_gio_read": rebalance_gio_read,
         "output_base": output_base,
         "split_output": split_output,
         "temporary_path": temporary_path,
@@ -139,7 +135,6 @@ def cli(config_path: Path):
             do_all2all_exchange=config["do_all2all_exchange"],
             split_output=config["split_output"],
             fail_on_desc_not_found=config["fail_on_desc_not_found"],
-            rebalance_gio_read=config["rebalance_gio_read"],
             mpi_waittime=config["mpi_waittime"],
             verbose=config["verbose"],
         )

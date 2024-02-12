@@ -126,7 +126,6 @@ def _read_data(
     filename: str,
     logger: Callable,
     fields_config: FieldsConfig,
-    rebalance: bool,
     verbose: Union[bool, int],
 ):
     fields_xyz = [
@@ -140,7 +139,6 @@ def _read_data(
             filename,
             fields_config.read_fields,
             method=pygio.PyGenericIO.FileIO.FileIOMPI,
-            rebalance_sourceranks=rebalance,
         )
 
     # mask invalid data
@@ -201,7 +199,6 @@ def _catalog2tree_step(
     fields_config: FieldsConfig,
     do_all2all_exchange: bool,
     fail_on_desc_not_found: bool,
-    rebalance_gio_read: bool,
     verbose: Union[bool, int],
     logger: Callable[[str], None],
 ):
@@ -219,7 +216,6 @@ def _catalog2tree_step(
             filename=treenode_filename,
             logger=logger,
             fields_config=fields_config,
-            rebalance=rebalance_gio_read,
             verbose=verbose,
         )
 
@@ -285,7 +281,6 @@ def catalog2tree(
     do_all2all_exchange: bool = False,
     split_output: bool = False,
     fail_on_desc_not_found: bool = True,
-    rebalance_gio_read: bool = False,
     mpi_waittime: float = 0,
     logger: Callable[[str], None] = None,
     verbose: Union[bool, int] = False,
@@ -326,10 +321,6 @@ def catalog2tree(
         if ``True``, will abort if a descendant halo cannot be found among all
         ranks. If ``False``, the orphaned halo will become the root of the
         subtree.
-
-    rebalance_gio_read
-        if ``True``, will reassign the reading ranks for the treenode files. Can
-        be slower or faster.
 
     mpi_waittime
         time in seconds for which the code will wait for the MPI to be
@@ -397,7 +388,6 @@ def catalog2tree(
             treenode_filename,
             logger,
             fields_config,
-            rebalance=rebalance_gio_read,
             verbose=verbose,
         )
 
@@ -436,7 +426,6 @@ def catalog2tree(
             fields_config,
             do_all2all_exchange,
             fail_on_desc_not_found,
-            rebalance_gio_read,
             verbose,
             logger,
         )
