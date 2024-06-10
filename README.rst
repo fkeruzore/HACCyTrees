@@ -5,8 +5,8 @@ Welcome to haccytrees! This is a python library to create, read, and process
 large merger-tree forests created from HACC simulations, such as Last Journey.
 
 Documentation and usage examples are provided at
-`<https://argonnecpac.github.io/haccytrees/>`_. The code is available at
-`<https://github.com/ArgonneCPAC/haccytrees>`_.
+`<https://argonnecpac.github.io/HACCyTrees/>`_. The code is available at
+`<https://github.com/ArgonneCPAC/HACCyTrees>`_.
 
 
 .. image:: tree_example.svg
@@ -22,7 +22,7 @@ To install haccytrees, you will need to clone the repository and then use `pip`.
 
 .. code-block:: bash
 
-   git clone https://github.com/ArgonneCPAC/haccytrees.git
+   git clone https://github.com/ArgonneCPAC/HACCyTrees.git
    cd haccytrees
 
    # Using pip to install the package
