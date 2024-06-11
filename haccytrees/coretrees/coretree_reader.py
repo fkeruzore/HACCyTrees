@@ -153,7 +153,7 @@ def corematrix_reader(
     calculate_secondary_host_row: bool = False,
 ):
     if isinstance(simulation, str):
-        if simulation[:-4] == ".cfg":
+        if simulation[-4:] == ".cfg":
             simulation = Simulation.parse_config(simulation)
         else:
             simulation = Simulation.simulations[simulation]
