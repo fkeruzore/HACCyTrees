@@ -23,7 +23,7 @@ class CoretreesAssemblyConfig:
     def parse_config(cls, config_path: str) -> "CoretreesAssemblyConfig":
         with open(config_path, "rb") as fp:
             config = toml.load(fp)
-        if config["simulation"]["simulation"][:-4] == ".cfg":
+        if config["simulation"]["simulation"][-4:] == ".cfg":
             simulation = Simulation.parse_config(config["simulation"]["simulation"])
         else:
             simulation = Simulation.simulations[config["simulation"]["simulation"]]
