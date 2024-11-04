@@ -7,6 +7,10 @@ import click
 import os
 from pathlib import Path
 
+from haccytrees.utils.mpi_error_handler import init_mpi_error_handler
+
+init_mpi_error_handler()
+
 
 @click.command()
 @click.argument(

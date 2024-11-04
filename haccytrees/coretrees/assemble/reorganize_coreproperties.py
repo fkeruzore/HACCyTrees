@@ -265,7 +265,7 @@ def reorganize_coreproperties(
                 discarded_fraction = (
                     count_orphan_cores_global / new_core_tags_count_global
                 )
-                logger(
+                print(
                     f"Discarding {count_orphan_cores_global} orphan cores "
                     f"({100*discarded_fraction:.3f})%",
                     flush=True,
@@ -290,10 +290,11 @@ def reorganize_coreproperties(
         oct_global = partition.comm.gather(owned_core_tags_count, root=0)
         oct_sum_global = partition.comm.gather(np.sum(owned_core_tags_length), root=0)
         if partition.rank == 0:
-            for i, (_oct_count, _oct_sum) in zip(oct_global, oct_sum_global):
-                logger(
+            for i, (_oct_count, _oct_sum) in enumerate(zip(oct_global, oct_sum_global)):
+                print(
                     f"Rank {i:3d}: {_oct_count:8d} cores tracked, "
                     f"{_oct_sum:8d} entries in total",
+                    flush=True
                 )
         partition.comm.Barrier()
 
