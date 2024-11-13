@@ -52,6 +52,19 @@ _borgcube_analysis_steps = [
         235, 241, 247, 253, 259, 266, 272, 279, 286, 293, 300, 307, 315,
         323, 331, 338, 347, 355, 365, 373, 382, 392, 401, 411, 421, 432,
         442, 453, 464, 475, 487, 499]
+
+#Discovery sims
+_discovery_analysis_steps = [
+        42, 43, 44, 45, 46, 48, 49, 50, 52, 53, 54, 56, 57, 59, 60,
+        62, 63, 65, 67, 68, 70, 72, 74, 76, 77, 79, 81, 84, 86, 88,
+        90, 92, 95, 97, 100, 102, 105, 107, 110, 113, 116, 119, 121,
+        124, 127, 131, 134, 137, 141, 144, 148, 151, 155, 159, 163, 167,
+        171, 176, 180, 184, 189, 194, 198, 203, 208, 213, 219, 224, 230,
+        235, 241, 247, 253, 259, 266, 272, 279, 286, 293, 300, 307, 315,
+        323, 331, 338, 347, 355, 365, 373, 382, 392, 401, 411, 421, 432,
+        442, 453, 464, 475, 487, 499]
+
+
 # fmt: on
 
 
@@ -64,6 +77,8 @@ class Cosmology:
     h: float
     ns: float
     s8: float
+    w0: float = -1.0
+    wa: float = 0.0
 
     cosmologies: ClassVar[Dict] = {}
 
@@ -78,24 +93,34 @@ class Cosmology:
         """Hubble time in Gyr (1/H0)"""
         return 1 / (100 * self.h) * _km_in_Mpc / _sec_in_year * 1e-9
 
+    # from Linder 2003 et al. (removed curvature)
     def hubble_parameter(self, a):
         """redshift dependend Hubble parameter, H(a)"""
+        if self.w0 == -1.0 and self.wa == 0.0:
+            w_term = 1.0
+        else:
+            w_term = a**(-3*(1 + self.w0 + self.wa))*np.exp(-3.*self.wa*(1-a))
+
         return (
             100
             * self.h
             * np.sqrt(
                 self.Omega_m * a**-3
-                + self.Omega_L
-                + (1 - self.Omega_m - self.Omega_L) * a**-2
-            )
-        )
+                + self.Omega_L * w_term
+                )
+        ) 
+
 
     def lookback_time(self, a):
         """Lookback time in Gyr from a=1"""
         # Integrate 1/(a'*H(a')) da' from a to 1
         # TODO: add radiation / neutrinos
+        if self.w0 == -1.0 and self.wa == 0.0:
+            w_term = 1.0
+        else:
+            w_term = a**(-3*(1 + self.w0 + self.wa))*np.exp(-3.*self.wa*(1-a))
         integrand = lambda a: (
-            self.Omega_m / a + self.Omega_L * a**2 + (1 - self.Omega_m - self.Omega_L)
+            self.Omega_m / a + self.Omega_L * a**2 * w_term
         ) ** (-0.5)
         da = 1e-3
         _a = np.linspace(a, 1, int(np.max((1 - a) / da)))
@@ -107,7 +132,11 @@ class Cosmology:
         return 18 * np.pi**2 + 82 * x - 39 * x**2
 
     def func_E2(self, a):
-        return self.Omega_m * a**-3 + self.Omega_L
+        if self.w0 == -1.0 and self.wa == 0.0:
+            w_term = 1.0
+        else:
+            w_term = a**(-3*(1 + self.w0 + self.wa))*np.exp(-3.*self.wa*(1-a))
+        return self.Omega_m * a**-3 + self.Omega_L * w_term
 
     def func_Omega_m(self, a):
         return self.Omega_m * a**-3 / self.func_E2(a)
@@ -204,6 +233,30 @@ LastJourneyCosmo = Cosmology(
     h=0.6766,
     ns=0.9665,
     s8=0.8102,
+    w0=-1.0,
+    wa=0,
+)
+
+DiscoveryW0WACosmo = Cosmology(
+    "DiscoveryW0WACosmo",
+    Omega_m=0.2903 + 0.0224 / 0.6466**2,
+    Omega_b=0.0224 / 0.6466**2,
+    Omega_L=1 - 0.2903 - 0.0224 / 0.6466**2,
+    h=0.6466,
+    ns=0.965,
+    s8=0.7917,
+    w0=-0.45,
+    wa=-1.79,
+)
+
+DiscoveryLCDMCosmo = Cosmology(
+    "DiscoveryLCDMCosmo",
+    Omega_m=0.2582 + 0.0225 / 0.6797**2,
+    Omega_b=0.0225 / 0.6797**2,
+    Omega_L=1 - 0.2582 - 0.0225 / 0.6797**2,
+    h=0.6797,
+    ns=0.968,
+    s8=0.8135,
 )
 
 AlphaQ = Simulation(
@@ -286,3 +339,30 @@ BorgCube = Simulation(
     cosmotools_steps=_borgcube_analysis_steps,
     fullalive_steps=_ljfp_analysis_steps,
 )
+
+DiscoveryLCDM = Simulation(
+    name="DiscoveryLCDM",
+    cosmo=DiscoveryLCDMCosmo,
+    rl=1019.55,
+    ng=6720,
+    np=6720,
+    nsteps=500,
+    zstart=200.0,
+    zfin=0.0,
+    cosmotools_steps=_discovery_analysis_steps,
+    fullalive_steps=_discovery_analysis_steps,
+)
+
+DiscoveryW0WA = Simulation(
+    name="DiscoveryW0WA",
+    cosmo=DiscoveryW0WACosmo,
+    rl=969.9,
+    ng=6720,
+    np=6720,
+    nsteps=500,
+    zstart=200.0,
+    zfin=0.0,
+    cosmotools_steps=_discovery_analysis_steps,
+    fullalive_steps=_discovery_analysis_steps,
+)
+
