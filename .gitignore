@@ -47,3 +47,4 @@ _notebooks
 .venv
 
 tmp/
+test/

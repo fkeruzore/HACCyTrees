@@ -1,4 +1,4 @@
-from typing import Mapping, Union, List
+from typing import Mapping, Union, List, Optional
 
 import h5py
 import numba
@@ -146,9 +146,9 @@ def corematrix_reader(
     filename: str,
     simulation: Union[Simulation, str],
     *,
-    nchunks: int = None,
-    chunknum: int = None,
-    include_fields: List[str] = None,
+    nchunks: Optional[int] = None,
+    chunknum: Optional[int] = None,
+    include_fields: Optional[List[str]] = None,
     calculate_host_rows: bool = True,
     calculate_secondary_host_row: bool = False,
 ):
@@ -185,6 +185,15 @@ def corematrix_reader(
         start = roots[0]
         end = file_end
 
+    # how many rows did we skip?
+    if start > 0:
+        with h5py.File(filename) as forest_file:
+            core_tag = forest_file["data"]["core_tag"][:start]
+        skipped_rows = _count_coreforest_rows(core_tag)
+        del core_tag
+    else:
+        skipped_rows = 0
+
     # read data
     with h5py.File(filename) as forest_file:
         if include_fields is None:
@@ -205,5 +214,9 @@ def corematrix_reader(
         simulation,
         calculate_host_rows=calculate_host_rows,
         calculate_secondary_host_row=calculate_secondary_host_row,
+    )
+
+    forest_matrices["absolute_row_idx"] = np.arange(
+        skipped_rows, skipped_rows + len(forest_matrices["core_tag"])
     )
     return forest_matrices

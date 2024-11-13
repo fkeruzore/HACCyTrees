@@ -7,6 +7,7 @@ authors = ["Michael Buehlmann <buehlmann.michi@gmail.com>"]
 [tool.poetry.scripts]
 haccytrees-convert = "haccytrees.scripts.treenodes2forest:cli"
 reorganize-coreproperties = "haccytrees.scripts.reorganize_coreproperties:cli"
+intersect-cores-with-lightcone = "haccytrees.scripts.intersect_cores_with_lightcone:cli"
 
 [tool.poetry.dependencies]
 python = ">=3.9.0,<3.14"
