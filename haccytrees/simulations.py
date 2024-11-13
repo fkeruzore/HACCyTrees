@@ -77,8 +77,8 @@ class Cosmology:
     h: float
     ns: float
     s8: float
-    w0: float
-    wa: float
+    w0: float = -1.0
+    wa: float = 0.0
 
     cosmologies: ClassVar[Dict] = {}
 
@@ -93,11 +93,10 @@ class Cosmology:
         """Hubble time in Gyr (1/H0)"""
         return 1 / (100 * self.h) * _km_in_Mpc / _sec_in_year * 1e-9
 
-    #NOTE: from Linder 2003 et al. check this
-    #NOTE: removed curvature
+    # from Linder 2003 et al. (removed curvature)
     def hubble_parameter(self, a):
         """redshift dependend Hubble parameter, H(a)"""
-        if (self.w0==-1.0)&(self.wa==0.0):
+        if self.w0 == -1.0 and self.wa == 0.0:
             w_term = 1.0
         else:
             w_term = a**(-3*(1 + self.w0 + self.wa))*np.exp(-3.*self.wa*(1-a))
@@ -116,7 +115,7 @@ class Cosmology:
         """Lookback time in Gyr from a=1"""
         # Integrate 1/(a'*H(a')) da' from a to 1
         # TODO: add radiation / neutrinos
-        if (self.w0==-1.0)&(self.wa==0.0):
+        if self.w0 == -1.0 and self.wa == 0.0:
             w_term = 1.0
         else:
             w_term = a**(-3*(1 + self.w0 + self.wa))*np.exp(-3.*self.wa*(1-a))
@@ -133,7 +132,7 @@ class Cosmology:
         return 18 * np.pi**2 + 82 * x - 39 * x**2
 
     def func_E2(self, a):
-        if (self.w0==-1.0)&(self.wa==0.0):
+        if self.w0 == -1.0 and self.wa == 0.0:
             w_term = 1.0
         else:
             w_term = a**(-3*(1 + self.w0 + self.wa))*np.exp(-3.*self.wa*(1-a))
@@ -181,7 +180,6 @@ class Simulation:
         return _rhoc * self.cosmo.Omega_m * (self.rl / self.np) ** 3
 
     @classmethod
-    #TODO: update with optional config of w0 and wa, else fill values of -1.0 and 0.0
     def parse_config(cls, config_path: str) -> "Simulation":
         config = configparser.ConfigParser()
         config.read(config_path)
@@ -223,8 +221,6 @@ OuterRimCosmo = Cosmology(
     h=0.71,
     ns=0.963,
     s8=0.8,
-    w0=-1.0,
-    wa=0,
 )
 
 
@@ -261,8 +257,6 @@ DiscoveryLCDMCosmo = Cosmology(
     h=0.6797,
     ns=0.968,
     s8=0.8135,
-    w0=-1.0,
-    wa=0.0,
 )
 
 AlphaQ = Simulation(
