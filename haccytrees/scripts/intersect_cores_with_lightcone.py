@@ -1,4 +1,6 @@
 import click
+from mpi4py import MPI
+
 from mpipartition import Partition, S2Partition, distribute, s2_distribute
 from haccytrees.coretrees.assemble import (
     CoretreesAssemblyConfig,
@@ -9,7 +11,8 @@ from pathlib import Path
 import pygio
 import numpy as np
 import h5py
-from mpi4py import MPI
+
+import numba
 
 from haccytrees.utils.mpi_error_handler import init_mpi_error_handler
 
@@ -28,17 +31,46 @@ core_fields = [
 ]
 
 
+def compose_unique_id(rep, tag):
+    assert np.all(rep < (1 << 23))
+    assert np.all(tag < (1 << 41))
+    assert np.all(rep >= 0)
+    assert np.all(tag >= 0)
+    return (rep.astype(np.uint64) << 41) + tag.astype(np.uint64)
+
+
+@numba.njit(parallel=True)
+def update_host_tag_matrix(host_row, core_tag, host_tag):
+    rows, cols = host_row.shape
+    # Loop over all entries and update in-place:
+    for i in numba.prange(rows):
+        for j in range(cols):
+            # If host_row is non-negative, assign the corresponding core_tag,
+            # otherwise leave it as -1.
+            if host_row[i, j] >= 0:
+                host_tag[i, j] = core_tag[host_row[i, j], j]
+            else:
+                host_tag[i, j] = -1
+
+
 def read_corematrix(
-    partition_cube: Partition, coreforest_base: Path, config: CoretreesAssemblyConfig
+    partition_cube: Partition,
+    coreforest_base: Path,
+    config: CoretreesAssemblyConfig,
+    *,
+    dbg_nfiles: int | None = None,
 ):
     if partition_cube.rank == 0:
         number_of_core_files = 0
         while Path(f"{coreforest_base}.{number_of_core_files}.hdf5").exists():
             number_of_core_files += 1
-
     else:
         number_of_core_files = None
     number_of_core_files = partition_cube.comm.bcast(number_of_core_files, root=0)
+
+    if dbg_nfiles is not None:
+        number_of_core_files = dbg_nfiles
+
     assert number_of_core_files > 0
 
     corematrix: dict[str, np.ndarray] = None
@@ -81,7 +113,7 @@ def read_corematrix(
             config.simulation,
             include_fields=core_fields,
             calculate_host_rows=True,
-            calculate_secondary_host_row=False,
+            calculate_secondary_host_row=True,
             nchunks=1,
             chunknum=0,
         )
@@ -94,6 +126,25 @@ def read_corematrix(
             _corematrix["absolute_row_idx"].reshape(-1, 1),
             (1, _corematrix["x"].shape[1]),
         )
+
+        _corematrix["top_host_tag"] = np.empty(
+            _corematrix["top_host_row"].shape, dtype=np.int64
+        )
+        update_host_tag_matrix(
+            _corematrix["top_host_row"],
+            _corematrix["core_tag"],
+            _corematrix["top_host_tag"],
+        )
+
+        _corematrix["secondary_top_host_tag"] = np.empty(
+            _corematrix["secondary_top_host_row"].shape, dtype=np.int64
+        )
+        update_host_tag_matrix(
+            _corematrix["secondary_top_host_row"],
+            _corematrix["core_tag"],
+            _corematrix["secondary_top_host_tag"],
+        )
+
         if corematrix is None:
             corematrix = _corematrix
         else:
@@ -157,7 +208,8 @@ def read_lightcone(partition_cube: Partition, lightcone_path: Path, simulation_n
     assert np.all(halo_lc["fof_halo_tag_clean"] < (1 << 41))
     assert np.all(halo_lc["replication"] >= 0)
     assert np.all(halo_lc["replication"] < (1 << 22))
-    unique_id = (halo_lc["replication"].astype(np.int64) << 41) + halo_lc["fof_halo_tag_clean"]
+    unique_id = compose_unique_id(halo_lc["replication"], halo_lc["fof_halo_tag_clean"])
+    # unique_id = (halo_lc["replication"].astype(np.int64) << 41) + halo_lc["fof_halo_tag_clean"]
     num_duplicates = len(unique_id) - len(np.unique(unique_id))
     max_duplicates = 0
     num_duplicated_halos = 0
@@ -185,16 +237,32 @@ def read_lightcone(partition_cube: Partition, lightcone_path: Path, simulation_n
         halo_lc = {k: v[s] for k, v in halo_lc.items()}
         unique_id = unique_id[s]
 
-    max_duplicates_global = partition_cube.comm.reduce(max_duplicates, op=MPI.MAX, root=0)
-    num_duplicated_halos_global = partition_cube.comm.reduce(num_duplicated_halos, op=MPI.SUM, root=0)
+    max_duplicates_global = partition_cube.comm.reduce(
+        max_duplicates, op=MPI.MAX, root=0
+    )
+    num_duplicated_halos_global = partition_cube.comm.reduce(
+        num_duplicated_halos, op=MPI.SUM, root=0
+    )
     if partition_cube.rank == 0:
-        print(f"DEBUG:: found {num_duplicated_halos_global} duplicated halos, max duplicates {max_duplicates_global}", flush=True)
-
+        print(
+            f"DEBUG:: found {num_duplicated_halos_global} duplicated halos, max duplicates {max_duplicates_global}",
+            flush=True,
+        )
 
     assert len(np.unique(unique_id)) == len(halo_lc["id"])
+    halo_lc["unique_id"] = unique_id
 
-    unique_tags, unique_reverse, unique_counts = np.unique(
-        halo_lc["fof_halo_tag_clean"], return_inverse=True, return_counts=True
+    unique_tags, unique_idx, unique_reverse, unique_counts = np.unique(
+        halo_lc["fof_halo_tag_clean"],
+        return_index=True,
+        return_inverse=True,
+        return_counts=True,
+    )
+
+    # make sure each non-unique fof_halo_tag has the same fragment index
+    assert np.all(
+        halo_lc["fragment_idx"] - halo_lc["fragment_idx"][unique_idx][unique_reverse]
+        == 0
     )
 
     # print("DEBUG max replications", np.max(unique_counts))
@@ -279,11 +347,16 @@ def distribute_cores_at_step(
     required=True,
     type=str,
 )
+@click.option(
+    "--dbg-ncorefiles",
+    type=int,
+)
 def cli(
     config_file: Path,
     lightcone_pattern: str,
     timestep_file: Path,
     output_base: Path,
+    dbg_ncorefiles: int | None,
 ):
     partition_cube = Partition(3)
     partition_s2 = S2Partition()
@@ -310,7 +383,9 @@ def cli(
 
     # Read all coretrees
     coreforest_base = config_file.parent / config.output_base
-    corematrix = read_corematrix(partition_cube, coreforest_base, config)
+    corematrix = read_corematrix(
+        partition_cube, coreforest_base, config, dbg_nfiles=dbg_ncorefiles
+    )
 
     # Forward iterate over lightcone outputs
     for step, snap_num in zip(timesteps, snapnums):
@@ -334,8 +409,10 @@ def cli(
         cores_step = distribute_cores_at_step(
             partition_cube, corematrix, snap_num, sim_np
         )
-
         # At this point, cores and halos on the lightcone are on the same rank
+
+        ################################################################################
+        # for each core, find one halo in the LC
         if partition_cube.rank == 0:
             print(" - Match LC with cores", flush=True)
         # Get all the cores whos parent halo intersects with the lightcone
@@ -348,6 +425,7 @@ def cli(
 
         # Match cores to halos by fof_halo_tag (without fragment index)
         assert np.all(np.diff(halo_lc["fof_halo_tag_clean"]) >= 0)  # check if sorted
+        # for each core, find one halo in the LC
         lc_index = np.searchsorted(
             halo_lc["fof_halo_tag_clean"], cores_step["fof_halo_tag_clean"]
         )
@@ -357,7 +435,8 @@ def cli(
             halo_lc["fof_halo_tag_clean"][lc_index] == cores_step["fof_halo_tag_clean"]
         )
 
-        # Find fof_halo_tag with correct fragment tag idx inside cores
+        ################################################################################
+        # Find central core corresponding to the fragment tag in the lightcone
         if partition_cube.rank == 0:
             print("   - find central core with matching fragment tag", flush=True)
         cores_lc_host_tag = halo_lc["id"][lc_index]
@@ -365,28 +444,50 @@ def cli(
         num_missing = np.sum(mask_missing)
         num_total = len(mask_missing)
         if num_missing > 0:
-            # message = f"DEBUG rank {partition_cube.rank}:\n"
-            # message += f"  Missing {np.sum(mask_missing)} fof_halo_tag (out of {len(mask_missing)})\n"
-            # message += f"  Missing fof_halo_tag: {cores_lc_host_tag[mask_missing]}\n"
-            # message += f"  Missing fof_halo_tag_clean: {halo_lc['fof_halo_tag_clean'][lc_index][mask_missing]}\n"
-            # message += f"  Missing fragment_idx: {halo_lc['fragment_idx'][lc_index][mask_missing]}\n"
-            # message += (
-            #     f"  Required by cores: {cores_step['fof_halo_tag'][mask_missing]}\n"
-            # )
-            # print(message)
-
             # Remove missing halos
             cores_step = {k: v[~mask_missing] for k, v in cores_step.items()}
             cores_lc_host_tag = cores_lc_host_tag[~mask_missing]
             lc_index = lc_index[~mask_missing]
-
         num_missing_global = partition_cube.comm.reduce(num_missing, root=0)
         num_total_global = partition_cube.comm.reduce(num_total, root=0)
         if partition_cube.rank == 0:
-            print(f"   - missing {num_missing_global} out of {num_total_global} fof_halo_tag", flush=True)
+            print(
+                f"   - missing {num_missing_global} out of {num_total_global} fof_halo_tag",
+                flush=True,
+            )
         assert np.all(np.isin(cores_lc_host_tag, cores_step["fof_halo_tag"]))
-        partition_cube.comm.Barrier()
 
+        # Get the actual index of the host core
+        cores_lc_host_idx = np.searchsorted(
+            cores_step["fof_halo_tag"], cores_lc_host_tag
+        )
+        assert np.all(
+            cores_step["fof_halo_tag"][cores_lc_host_idx] == cores_lc_host_tag
+        )
+
+        ################################################################################
+        # Calculate distances to the host core
+        partition_cube.comm.Barrier()
+        if partition_cube.rank == 0:
+            print(" - calculate core offsets", flush=True)
+        mask_valid = np.ones_like(cores_step["x"], dtype=np.bool_)
+        for x in "xyz":
+            _dx = (
+                cores_step[x] - cores_step[x][cores_lc_host_idx]
+                # - cores_step[f"infall_fof_halo_center_{x}"][cores_lc_host_idx]
+            )
+            _dx[_dx > config.simulation.rl / 2] -= config.simulation.rl
+            _dx[_dx < -config.simulation.rl / 2] += config.simulation.rl
+            if not np.all(np.abs(_dx) <= 20):
+                print("DEBUG:: found large dx", x, _dx[np.abs(_dx) > 20], flush=True)
+            mask_valid &= np.abs(_dx) <= 20
+            # assert np.all(np.abs(_dx) <= 20)
+            cores_step[f"d{x}"] = _dx
+
+        cores_step = {k: v[mask_valid] for k, v in cores_step.items()}
+        lc_index = lc_index[mask_valid]
+
+        ################################################################################
         # Handle replications
         if partition_cube.rank == 0:
             print("   - handle replications", flush=True)
@@ -399,63 +500,41 @@ def cli(
             lc_index = lc_index[s]
             # offset each repeated index by 1 (so it points to the next replicated halo in the lightcone)
             lc_index += np.concatenate([np.arange(c) for c in _counts])
+            # add replications to cores_step
+            cores_step["replication"] = halo_lc["replication"][lc_index]
+            cores_step["unique_id"] = compose_unique_id(
+                cores_step["replication"], cores_step["fof_halo_tag_clean"]
+            )
             # make sure we didn't screw up anything
             assert np.all(
                 halo_lc["fof_halo_tag_clean"][lc_index]
                 == cores_step["fof_halo_tag_clean"]
             )
+            assert np.all(halo_lc["unique_id"][lc_index] == cores_step["unique_id"])
             mask_invalid = halo_lc["id"][lc_index] != cores_lc_host_tag[s]
             if np.any(mask_invalid):
                 print(f"DEBUG:: found {np.sum(mask_invalid)} mismatching fof_halo_tag")
-                print(halo_lc["id"][lc_index][mask_invalid], cores_lc_host_tag[s][mask_invalid], flush=True)
-            # cores_lc_host_tag = halo_lc["id"][lc_index]
-            cores_lc_host_tag = cores_lc_host_tag[s]
+                print(
+                    halo_lc["id"][lc_index][mask_invalid],
+                    cores_lc_host_tag[s][mask_invalid],
+                    flush=True,
+                )
 
-        # Some sanity checks:
-        # - we have all cores of halos in the lightcone
-        assert np.all(np.isin(cores_lc_host_tag, cores_step["fof_halo_tag"]))
-        cores_lc_host_idx = np.searchsorted(
-            cores_step["fof_halo_tag"],cores_lc_host_tag
-        )
-        # - check the fof_halo_tag matches
-        assert np.all(
-            cores_step["fof_halo_tag"][cores_lc_host_idx] == cores_lc_host_tag
-        )
-        # apparently they don't need to be centrals...
-        # assert np.all(cores_step["central"][cores_lc_host_idx] > 0)
-
-        partition_cube.comm.Barrier()
-        if partition_cube.rank == 0:
-            print(" - calculate core offsets", flush=True)
-        # Calculate distances
-        mask_valid = np.ones_like(cores_step["x"], dtype=np.bool_)
-        for x in "xyz":
-            _dx = (
-                cores_step[x]
-                - cores_step[x][cores_lc_host_idx]
-                # - cores_step[f"infall_fof_halo_center_{x}"][cores_lc_host_idx]
-            )
-            _dx[_dx > config.simulation.rl / 2] -= config.simulation.rl
-            _dx[_dx < -config.simulation.rl / 2] += config.simulation.rl
-            if not np.all(np.abs(_dx) <= 20):
-                print("DEBUG:: found large dx", x, _dx[np.abs(_dx) > 20], flush=True)
-            mask_valid &= np.abs(_dx) <= 20
-            # assert np.all(np.abs(_dx) <= 20)
-            cores_step[f"d{x}"] = _dx
-        cores_step = {k: v[mask_valid] for k, v in cores_step.items()}
-        lc_index = lc_index[mask_valid]
-
+        ################################################################################
+        # Apply offsets to core positions
         for x in "xyz":
             cores_step[x] = halo_lc[x][lc_index] + cores_step[f"d{x}"]
             cores_step[f"host_{x}"] = halo_lc[x][lc_index]
-        r = np.sqrt(np.sum([cores_step[x] ** 2 for x in "xyz"], axis=0))
-        rhost = np.sqrt(np.sum([cores_step[f"host_{x}"] ** 2 for x in "xyz"], axis=0))
 
+        ################################################################################
+        # Calculate angular coordinates
         partition_cube.comm.Barrier()
         if partition_cube.rank == 0:
             print(" - calculate angular coordinates", flush=True)
         # Calculate angular lightcone coordinates
         # theta between [0, pi], phi between [0, 2pi]
+        r = np.sqrt(np.sum([cores_step[x] ** 2 for x in "xyz"], axis=0))
+        rhost = np.sqrt(np.sum([cores_step[f"host_{x}"] ** 2 for x in "xyz"], axis=0))
         cores_step["theta"] = np.arccos(cores_step["z"] / r)
         cores_step["phi"] = np.arctan2(cores_step["y"], cores_step["x"]) + np.pi
         cores_step["host_theta"] = np.arccos(cores_step["host_z"] / rhost)
@@ -477,6 +556,8 @@ def cli(
         cores_step["phi"] = np.fmod(cores_step["phi"], 2 * np.pi)
         cores_step["host_phi"] = np.fmod(cores_step["host_phi"], 2 * np.pi)
 
+        ################################################################################
+        # Redistribute cores on the lightcone, given by sphere segment
         partition_cube.comm.Barrier()
         if partition_cube.rank == 0:
             print(" - distribute cores on LC", flush=True)
@@ -486,8 +567,50 @@ def cli(
             cores_step,
             theta_key="host_theta",
             phi_key="host_phi",
+            verbose=1,
         )
 
+        ################################################################################
+        # Get additional indices (Andrew)
+        if partition_cube.rank == 0:
+            print(" - calculate additional indices", flush=True)
+
+        lightcone_dtype = np.dtype([("replication", np.int32), ("tag", np.int64)])
+        unique_coretag = np.empty(len(cores_step["core_tag"]), dtype=lightcone_dtype)
+        unique_coretag["replication"] = cores_step["replication"]
+        unique_coretag["tag"] = cores_step["core_tag"]
+        s = np.argsort(unique_coretag)
+        assert len(unique_coretag) == len(np.unique(unique_coretag))
+        # # make sure we don't have multiple replications on this rank...
+        # assert np.all(np.diff(cores_step["core_tag"][s]) > 0)
+
+        for idx_name in ["top_host_tag", "secondary_top_host_tag"]:
+            partition_cube.comm.Barrier()
+            if partition_cube.rank == 0:
+                print(f"   - {idx_name}", flush=True)
+            mask = cores_step[idx_name] >= 0
+            assert np.all(np.isin(cores_step[idx_name][mask], cores_step["core_tag"]))
+
+            unique_coretag_host = np.empty(np.sum(mask), dtype=lightcone_dtype)
+            unique_coretag_host["replication"] = cores_step["replication"][mask]
+            unique_coretag_host["tag"] = cores_step[idx_name][mask]
+
+            idx = np.searchsorted(unique_coretag[s], unique_coretag_host)
+            assert np.all(unique_coretag[s][idx] == unique_coretag_host)
+
+            key = idx_name.replace("tag", "idx")
+            _d = np.full(len(cores_step["core_tag"]), -1, dtype=np.int64)
+            _d[mask] = s[idx]
+            cores_step[key] = _d
+            assert np.all(
+                cores_step["core_tag"][_d[mask]] == cores_step[idx_name][mask]
+            )
+            assert np.all(
+                cores_step["replication"][_d[mask]] == cores_step["replication"][mask]
+            )
+
+        ################################################################################
+        # Write cores to HDF5
         if partition_cube.rank == 0:
             print(" - write HDF5", flush=True)
         # Write cores to file
@@ -499,6 +622,8 @@ def cli(
             "phi",
             "scale_factor",
         ]
+        output_fields += ["top_host_tag", "secondary_top_host_tag"]
+        output_fields += ["top_host_idx", "secondary_top_host_idx"]
         with h5py.File(output_file, "w") as f:
             for k in output_fields:
                 f.create_dataset(k, data=cores_step[k])

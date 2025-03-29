@@ -27,7 +27,7 @@ optional = true
 
 [tool.poetry.group.assemble.dependencies]
 pygio = { git = "https://git.cels.anl.gov/hacc/genericio.git" }
-mpipartition = "^1.2.0"
+mpipartition = { git = "https://github.com/ArgonneCPAC/MPIPartition.git", branch = "allow_southpole"}
 
 [tool.poetry.group.docs]
 optional = true
