@@ -1,6 +1,6 @@
 import numpy as np
 from collections import namedtuple
-import drawsvg
+import drawSvg
 import matplotlib
 from typing import Mapping, Union
 
@@ -180,7 +180,7 @@ def merger_tree_drawing(
     cmap: Union[str, matplotlib.colors.Colormap] = "viridis",
     coloring: str = "branch",
     **kwargs,
-) -> drawsvg.Drawing:
+) -> drawSvg.Drawing:
     """Visualize the merger-tree as an svg
 
     Parameters
@@ -226,7 +226,7 @@ def merger_tree_drawing(
 
     Returns
     -------
-    drawing: drawsvg.Drawing
+    drawing: drawSvg.Drawing
         the svg
 
     Notes
@@ -343,12 +343,12 @@ def merger_tree_drawing(
     else:
         raise NotImplementedError(f"unknown coloring {coloring}")
 
-    d = drawsvg.Drawing(aspect, 1, origin=(0, 0))
+    d = drawSvg.Drawing(aspect, 1, origin=(0, 0))
     d.setRenderSize(aspect * height, height)
-    d.draw(drawsvg.Rectangle(0, 0, aspect, 1, fill="#FFF"))
+    d.draw(drawSvg.Rectangle(0, 0, aspect, 1, fill="#FFF"))
     for i in range(nhalos):
         d.append(
-            drawsvg.Rectangle(
+            drawSvg.Rectangle(
                 hx[i],
                 hy[i],
                 hh[i],
@@ -369,7 +369,7 @@ def merger_tree_drawing(
         _s0 = _dx * soft  # distance to control point 1
         _s1 = _dx * (1 - soft)  # distance to control point 2
         d.append(
-            drawsvg.Path(
+            drawSvg.Path(
                 stroke="none",
                 fill=colors[lp],
                 fill_opacity=0.6 if highlights[lp] else 0.1,
