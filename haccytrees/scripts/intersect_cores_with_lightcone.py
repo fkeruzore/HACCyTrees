@@ -101,21 +101,28 @@ def read_corematrix(
                 corematrix["absolute_row_idx"].reshape(-1, 1),
                 (1, corematrix["x"].shape[1]),
             )
+            corematrix["top_host_tag"] = np.empty((0, corematrix["x"].shape[1]), dtype=np.int64)
+            corematrix["secondary_top_host_tag"] = np.empty((0, corematrix["x"].shape[1]), dtype=np.int64)
         corematrix = partition_cube.comm.bcast(corematrix, root=0)
 
     # Actually reading data
     if partition_cube.rank == 0:
-        print(f"Reading {number_of_core_files} core files")
+        print(f"Reading {number_of_core_files} core files", flush=True)
     partition_cube.comm.Barrier()
-    for i in range(partition_cube.rank, number_of_core_files, partition_cube.nranks):
+    nchunks = 8
+
+    for j in range(partition_cube.rank, number_of_core_files*nchunks, partition_cube.nranks):
+        i = j // nchunks
+        chunknum = j % nchunks
+
         _corematrix = corematrix_reader(
             f"{coreforest_base}.{i}.hdf5",
             config.simulation,
             include_fields=core_fields,
             calculate_host_rows=True,
             calculate_secondary_host_row=True,
-            nchunks=1,
-            chunknum=0,
+            nchunks=nchunks,
+            chunknum=chunknum,
         )
         _corematrix["file_idx"] = np.full(_corematrix["x"].shape, i, dtype=np.uint16)
         _corematrix["row_idx"] = np.tile(
@@ -150,6 +157,11 @@ def read_corematrix(
         else:
             for k in corematrix.keys():
                 corematrix[k] = np.concatenate([corematrix[k], _corematrix[k]], axis=0)
+
+    partition_cube.comm.Barrier()
+    if partition_cube.rank == 0:
+        print(f"Reading core files done", flush=True)
+    partition_cube.comm.Barrier()
 
     return corematrix
 
@@ -260,6 +272,25 @@ def read_lightcone(partition_cube: Partition, lightcone_path: Path, simulation_n
     )
 
     # make sure each non-unique fof_halo_tag has the same fragment index
+    mask = halo_lc["fragment_idx"] - halo_lc["fragment_idx"][unique_idx][unique_reverse] == 0
+    if not np.all(mask):
+        idx_comp = (unique_idx[unique_reverse])[~mask]
+        print_mask = mask.copy()
+        print_mask[idx_comp] = False
+        print("WARNING: multiple fragment_index found for same fof_halo_tag:")
+        print(f"   clean_tag: {halo_lc['fof_halo_tag_clean'][~print_mask]}")
+        print(f"   frag_idx : {halo_lc['fragment_idx'][~print_mask]}")
+        print(f"   replicat : {halo_lc['replication'][~print_mask]}")
+        print(f"   orig_tag : {halo_lc['id'][~print_mask]}", flush=True)
+        
+        halo_lc = {k: d[mask] for k, d in halo_lc.items()}
+        unique_tags, unique_idx, unique_reverse, unique_counts = np.unique(
+            halo_lc["fof_halo_tag_clean"],
+            return_index=True,
+            return_inverse=True,
+            return_counts=True,
+        )
+    partition_cube.comm.Barrier()
     assert np.all(
         halo_lc["fragment_idx"] - halo_lc["fragment_idx"][unique_idx][unique_reverse]
         == 0
@@ -486,6 +517,7 @@ def cli(
 
         cores_step = {k: v[mask_valid] for k, v in cores_step.items()}
         lc_index = lc_index[mask_valid]
+        cores_lc_host_tag = cores_lc_host_tag[mask_valid]
 
         ################################################################################
         # Handle replications
@@ -519,6 +551,9 @@ def cli(
                     cores_lc_host_tag[s][mask_invalid],
                     flush=True,
                 )
+        else:
+            cores_step["replication"] = np.empty(0, halo_lc["replication"].dtype)
+            cores_step["unique_id"] = np.empty(0, halo_lc["unique_id"].dtype)
 
         ################################################################################
         # Apply offsets to core positions
@@ -567,7 +602,6 @@ def cli(
             cores_step,
             theta_key="host_theta",
             phi_key="host_phi",
-            verbose=1,
         )
 
         ################################################################################
@@ -589,6 +623,14 @@ def cli(
             if partition_cube.rank == 0:
                 print(f"   - {idx_name}", flush=True)
             mask = cores_step[idx_name] >= 0
+            count_target = np.sum(mask)
+            #mask[~np.isin(cores_step[idx_name][mask], cores_step["core_tag"])] = False
+            mask &= np.isin(cores_step[idx_name], cores_step["core_tag"])
+            count_actual = np.sum(mask)
+            count_lost = count_target-count_actual
+            count_lost_global = partition_cube.comm.reduce(count_lost, op=MPI.SUM, root=0)
+            if partition_cube.rank == 0 and count_lost_global > 0:
+                print(f"WARNING: LOST {count_lost_global} INDICES FOR {idx_name}", flush=True)
             assert np.all(np.isin(cores_step[idx_name][mask], cores_step["core_tag"]))
 
             unique_coretag_host = np.empty(np.sum(mask), dtype=lightcone_dtype)
