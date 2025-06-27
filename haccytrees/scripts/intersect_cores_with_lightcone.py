@@ -59,7 +59,7 @@ def read_corematrix(
     config: CoretreesAssemblyConfig,
     *,
     dbg_nfiles: int | None = None,
-):
+) -> dict[str, np.ndarray]:
     if partition_cube.rank == 0:
         number_of_core_files = 0
         while Path(f"{coreforest_base}.{number_of_core_files}.hdf5").exists():
@@ -73,7 +73,7 @@ def read_corematrix(
 
     assert number_of_core_files > 0
 
-    corematrix: dict[str, np.ndarray] = None
+    corematrix: dict[str, np.ndarray] | None = None
 
     # Just read a tiny bit of data so that we have the right fields we can send to everyone
     if number_of_core_files < partition_cube.nranks:
@@ -101,8 +101,12 @@ def read_corematrix(
                 corematrix["absolute_row_idx"].reshape(-1, 1),
                 (1, corematrix["x"].shape[1]),
             )
-            corematrix["top_host_tag"] = np.empty((0, corematrix["x"].shape[1]), dtype=np.int64)
-            corematrix["secondary_top_host_tag"] = np.empty((0, corematrix["x"].shape[1]), dtype=np.int64)
+            corematrix["top_host_tag"] = np.empty(
+                (0, corematrix["x"].shape[1]), dtype=np.int64
+            )
+            corematrix["secondary_top_host_tag"] = np.empty(
+                (0, corematrix["x"].shape[1]), dtype=np.int64
+            )
         corematrix = partition_cube.comm.bcast(corematrix, root=0)
 
     # Actually reading data
@@ -111,7 +115,9 @@ def read_corematrix(
     partition_cube.comm.Barrier()
     nchunks = 8
 
-    for j in range(partition_cube.rank, number_of_core_files*nchunks, partition_cube.nranks):
+    for j in range(
+        partition_cube.rank, number_of_core_files * nchunks, partition_cube.nranks
+    ):
         i = j // nchunks
         chunknum = j % nchunks
 
@@ -160,9 +166,9 @@ def read_corematrix(
 
     partition_cube.comm.Barrier()
     if partition_cube.rank == 0:
-        print(f"Reading core files done", flush=True)
+        print("Reading core files done", flush=True)
     partition_cube.comm.Barrier()
-
+    assert corematrix is not None
     return corematrix
 
 
@@ -272,7 +278,10 @@ def read_lightcone(partition_cube: Partition, lightcone_path: Path, simulation_n
     )
 
     # make sure each non-unique fof_halo_tag has the same fragment index
-    mask = halo_lc["fragment_idx"] - halo_lc["fragment_idx"][unique_idx][unique_reverse] == 0
+    mask = (
+        halo_lc["fragment_idx"] - halo_lc["fragment_idx"][unique_idx][unique_reverse]
+        == 0
+    )
     if not np.all(mask):
         idx_comp = (unique_idx[unique_reverse])[~mask]
         print_mask = mask.copy()
@@ -282,7 +291,7 @@ def read_lightcone(partition_cube: Partition, lightcone_path: Path, simulation_n
         print(f"   frag_idx : {halo_lc['fragment_idx'][~print_mask]}")
         print(f"   replicat : {halo_lc['replication'][~print_mask]}")
         print(f"   orig_tag : {halo_lc['id'][~print_mask]}", flush=True)
-        
+
         halo_lc = {k: d[mask] for k, d in halo_lc.items()}
         unique_tags, unique_idx, unique_reverse, unique_counts = np.unique(
             halo_lc["fof_halo_tag_clean"],
@@ -303,7 +312,10 @@ def read_lightcone(partition_cube: Partition, lightcone_path: Path, simulation_n
 
 
 def distribute_cores_at_step(
-    partition_cube: Partition, corematrix: dict, snap_num: int, simulation_np: int
+    partition_cube: Partition,
+    corematrix: dict[str, np.ndarray],
+    snap_num: int,
+    simulation_np: int,
 ):
     # Get all cores at that step
     cores_step = {k: v[:, snap_num] for k, v in corematrix.items()}
@@ -393,7 +405,7 @@ def cli(
     partition_s2 = S2Partition()
 
     if partition_s2.rank == 0:
-        with open(output_base + "-decomposition.txt", "w") as f:
+        with open(str(output_base) + "-decomposition.txt", "w") as f:
             f.write(f"{'index':<10} {'theta':<20} {'phi':<20}\n\n")
             for i in range(partition_s2.nranks):
                 _theta = partition_s2.all_theta_extents[i]
@@ -402,7 +414,7 @@ def cli(
                 _phi = f"[{_phi[0]:8.6f}, {_phi[1]:8.6f}]"
                 f.write(f"{i:<10} {_theta:<20} {_phi:<20}\n")
 
-    config = CoretreesAssemblyConfig.parse_config(config_file)
+    config = CoretreesAssemblyConfig.parse_config(str(config_file))
     sim_np = config.simulation.np
 
     with open(timestep_file) as f:
@@ -432,7 +444,7 @@ def cli(
         if partition_cube.rank == 0:
             print(" - Reading lightcone", flush=True)
         lightcone_catalog = lightcone_pattern.replace("#", str(step))
-        halo_lc = read_lightcone(partition_cube, lightcone_catalog, sim_np)
+        halo_lc = read_lightcone(partition_cube, Path(lightcone_catalog), sim_np)
         partition_cube.comm.Barrier()
 
         if partition_cube.rank == 0:
@@ -551,6 +563,8 @@ def cli(
                     cores_lc_host_tag[s][mask_invalid],
                     flush=True,
                 )
+            cores_step["lc_fof_halo_tag"] = halo_lc["id"][lc_index]
+            cores_step["lc_fof_halo_flag"] = mask_invalid
         else:
             cores_step["replication"] = np.empty(0, halo_lc["replication"].dtype)
             cores_step["unique_id"] = np.empty(0, halo_lc["unique_id"].dtype)
@@ -623,17 +637,24 @@ def cli(
             if partition_cube.rank == 0:
                 print(f"   - {idx_name}", flush=True)
             mask = cores_step[idx_name] >= 0
-            count_target = np.sum(mask)
-            #mask[~np.isin(cores_step[idx_name][mask], cores_step["core_tag"])] = False
+            count_target = int(np.sum(mask))
+            # mask[~np.isin(cores_step[idx_name][mask], cores_step["core_tag"])] = False
             mask &= np.isin(cores_step[idx_name], cores_step["core_tag"])
-            count_actual = np.sum(mask)
-            count_lost = count_target-count_actual
-            count_lost_global = partition_cube.comm.reduce(count_lost, op=MPI.SUM, root=0)
-            if partition_cube.rank == 0 and count_lost_global > 0:
-                print(f"WARNING: LOST {count_lost_global} INDICES FOR {idx_name}", flush=True)
+            count_actual = int(np.sum(mask))
+            count_lost = count_target - count_actual
+            count_lost_global = partition_cube.comm.reduce(
+                count_lost, op=MPI.SUM, root=0
+            )
+            if partition_cube.rank == 0:
+                assert count_lost_global is not None
+                if count_lost_global > 0:
+                    print(
+                        f"WARNING: LOST {count_lost_global} INDICES FOR {idx_name}",
+                        flush=True,
+                    )
             assert np.all(np.isin(cores_step[idx_name][mask], cores_step["core_tag"]))
 
-            unique_coretag_host = np.empty(np.sum(mask), dtype=lightcone_dtype)
+            unique_coretag_host = np.empty(int(np.sum(mask)), dtype=lightcone_dtype)
             unique_coretag_host["replication"] = cores_step["replication"][mask]
             unique_coretag_host["tag"] = cores_step[idx_name][mask]
 
@@ -655,14 +676,29 @@ def cli(
         # Write cores to HDF5
         if partition_cube.rank == 0:
             print(" - write HDF5", flush=True)
+
+        # Rename fields
+        cores_step["lc_halo_x"] = cores_step.pop("host_x")
+        cores_step["lc_halo_y"] = cores_step.pop("host_y")
+        cores_step["lc_halo_z"] = cores_step.pop("host_z")
+        cores_step["lc_halo_phi"] = cores_step.pop("host_phi")
+        cores_step["lc_halo_theta"] = cores_step.pop("host_theta")
+        cores_step["lc_halo_foftag"] = cores_step.pop("fof_halo_tag_clean")
         # Write cores to file
-        output_file = output_base + f"-{step}.{partition_cube.rank}.hdf5"
+        output_file = str(output_base) + f"-{step}.{partition_cube.rank}.hdf5"
         output_fields = core_fields + [
             "file_idx",
             "row_idx",
             "theta",
             "phi",
             "scale_factor",
+            "lc_halo_x",
+            "lc_halo_y",
+            "lc_halo_z",
+            "lc_halo_theta",
+            "lc_halo_phi",
+            "lc_fof_halo_tag",
+            "lc_fof_halo_flag",
         ]
         output_fields += ["top_host_tag", "secondary_top_host_tag"]
         output_fields += ["top_host_idx", "secondary_top_host_idx"]
