@@ -175,7 +175,10 @@ def reorganize_coreproperties(
     # communicate foreign cores
     with Timer(name="exchange foreign cores", logger=logger):
         mask_foreign_cores = np.isin(coreprops["fof_halo_tag"], fof_tags, invert=True)
-        if np.any(mask_foreign_cores):
+        need_exchange_local = int(np.any(mask_foreign_cores))
+        need_exchange_global = partition.comm.allreduce(need_exchange_local, op=MPI.MAX)
+
+        if need_exchange_global:
             coreprops = exchange(
                 partition,
                 coreprops,
@@ -241,7 +244,11 @@ def reorganize_coreproperties(
             mask_foreign_cores = np.isin(
                 coreprops["core_tag"], owned_core_tags, invert=True
             )
-            if np.any(mask_foreign_cores):
+            mask_foreign_cores = np.isin(coreprops["fof_halo_tag"], fof_tags, invert=True)
+            need_exchange_local = int(np.any(mask_foreign_cores))
+            need_exchange_global = partition.comm.allreduce(need_exchange_local, op=MPI.MAX)
+
+            if need_exchange_global:
                 coreprops = exchange(
                     partition,
                     coreprops,
