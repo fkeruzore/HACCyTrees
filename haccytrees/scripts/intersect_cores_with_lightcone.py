@@ -186,7 +186,7 @@ def read_lightcone(partition_cube: Partition, lightcone_path: Path, simulation_n
         dictionary containing the lightcone halos. The halos are sorted by their (non-fragmented) fof_halo_tag
     """
     lc_fields = ["x", "y", "z", "id", "a", "replication"]
-    halo_lc = pygio.read_genericio(lightcone_path, lc_fields)
+    halo_lc = pygio.read_genericio(str(lightcone_path), lc_fields)
 
     # distribute LC halos according to their Lagrangian position
     # note:: halo LC only contains one fragment per fof halo, which does not need
@@ -564,6 +564,8 @@ def cli(
         else:
             cores_step["replication"] = np.empty(0, halo_lc["replication"].dtype)
             cores_step["unique_id"] = np.empty(0, halo_lc["unique_id"].dtype)
+            cores_step["lc_fof_halo_tag"] = np.empty(0, halo_lc["id"].dtype)
+            cores_step["lc_fof_halo_flag"] = np.empty(0, np.bool_)
 
         ################################################################################
         # Apply offsets to core positions
