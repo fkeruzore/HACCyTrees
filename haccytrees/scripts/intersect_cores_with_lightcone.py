@@ -94,8 +94,9 @@ def read_corematrix(
             corematrix["coreforest_file_idx"] = np.empty(
                 (0, corematrix["x"].shape[1]), dtype=np.uint16
             )
+            corematrix["coreforest_row_idx"] = corematrix.pop("absolute_row_idx")
             corematrix["coreforest_row_idx"] = np.tile(
-                corematrix["absolute_row_idx"].reshape(-1, 1),
+                corematrix["coreforest_row_idx"].reshape(-1, 1),
                 (1, corematrix["x"].shape[1]),
             )
             corematrix["top_host_tag"] = np.empty(
