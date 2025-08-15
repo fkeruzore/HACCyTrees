@@ -91,13 +91,10 @@ def read_corematrix(
                 corematrix[k] = np.empty(
                     (0,) + corematrix[k].shape[1:], dtype=corematrix[k].dtype
                 )
-            corematrix["file_idx"] = np.empty(
+            corematrix["coreforest_file_idx"] = np.empty(
                 (0, corematrix["x"].shape[1]), dtype=np.uint16
             )
-            corematrix["row_idx"] = np.empty(
-                (0, corematrix["x"].shape[1]), dtype=np.uint32
-            )
-            corematrix["absolute_row_idx"] = np.tile(
+            corematrix["coreforest_row_idx"] = np.tile(
                 corematrix["absolute_row_idx"].reshape(-1, 1),
                 (1, corematrix["x"].shape[1]),
             )
@@ -130,13 +127,12 @@ def read_corematrix(
             nchunks=nchunks,
             chunknum=chunknum,
         )
-        _corematrix["file_idx"] = np.full(_corematrix["x"].shape, i, dtype=np.uint16)
-        _corematrix["row_idx"] = np.tile(
-            np.arange(_corematrix["x"].shape[0], dtype=np.uint32).reshape(-1, 1),
-            (1, _corematrix["x"].shape[1]),
+        _corematrix["coreforest_file_idx"] = np.full(
+            _corematrix["x"].shape, i, dtype=np.uint16
         )
-        _corematrix["absolute_row_idx"] = np.tile(
-            _corematrix["absolute_row_idx"].reshape(-1, 1),
+        _corematrix["coreforest_row_idx"] = _corematrix.pop("absolute_row_idx")
+        _corematrix["coreforest_row_idx"] = np.tile(
+            _corematrix["coreforest_row_idx"].reshape(-1, 1),
             (1, _corematrix["x"].shape[1]),
         )
 
@@ -687,8 +683,8 @@ def cli(
         # Write cores to file
         output_file = str(output_base) + f"-{step}.{partition_cube.rank}.hdf5"
         output_fields = core_fields + [
-            "file_idx",
-            "row_idx",
+            "coreforest_file_idx",
+            "coreforest_row_idx",
             "theta",
             "phi",
             "scale_factor",
