@@ -11,7 +11,7 @@ intersect-cores-with-lightcone = "haccytrees.scripts.intersect_cores_with_lightc
 
 [tool.poetry.dependencies]
 python = ">=3.9.0,<3.14"
-numpy = "^1.24.0"
+numpy = ">1.24.0"
 matplotlib = "^3.7.1"
 numba = "^0.59.1"
 click = "^8.1.3"
